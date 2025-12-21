@@ -1,0 +1,24 @@
+# Исключить ВСЁ
+/*
+
+# Затем РАЗРЕШИТЬ нужные файлы и папки
+!/.gitignore
+!/avatar.png
+!/CMakeLists.txt
+!/flake.lock
+!/flake.nix
+!/.github/
+!/.github/*
+!/elements/
+!/elements/*
+!/include/
+!/include/*
+!/src/
+!/src/*
+!/static/
+!/static/*
+!/template/
+!/template/*
+
+# Исключить пустые директории (опционально)
+!.gitkeep
