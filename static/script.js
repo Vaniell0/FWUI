@@ -1,6 +1,5 @@
 // Объединённый код валидации формы и анимаций
 document.addEventListener('DOMContentLoaded', function() {
-    // ========== ВАЛИДАЦИЯ ФОРМЫ ==========
     const form = document.getElementById('contact-form');
     if (form) {
         const nameInput = document.getElementById('name');
@@ -162,7 +161,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // ========== АНИМАЦИЯ КАРТОЧЕК ПРОЕКТОВ ==========
     // Анимация при наведении на карточки проектов
     const projectCards = document.querySelectorAll('.project-card');
     projectCards.forEach(card => {
@@ -175,7 +173,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // ========== ПЛАВНОЕ ПОЯВЛЕНИЕ ЭЛЕМЕНТОВ ==========
     const fadeElements = document.querySelectorAll('.skill-item, .experience-item, .contact-link');
     fadeElements.forEach((el, index) => {
         el.style.opacity = '0';

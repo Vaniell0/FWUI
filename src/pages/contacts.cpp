@@ -1,7 +1,7 @@
 #include "pages.hpp"
 
 // Создание секции контактов
-string createContactSection() {
+REGISTER_COMPONENT(contacts, [](){
     auto contacts = hbox({
             text("Email") | Hyperlink("mailto:ripaivan11@gmail.com", "_self") | SetClass("contact-link text-bold"),
             text("•") | SetClass("separator"),
@@ -10,10 +10,9 @@ string createContactSection() {
             text("Telegram") | Hyperlink("https://t.me/Ivanripa", "_blank") | SetClass("contact-link text-bold")
         }) | Center() | SetClass("contacts-grid") | SetClass("section");
     return contacts->Render();
-}
+});
 
-// Создание формы обратной связи (исправлено)
-string createContactForm() {
+REGISTER_COMPONENT(contactForm, [](){
     Element contact_form = load(base_path / "static" / "contactForm.html");
     return contact_form->Render();
-}
+});

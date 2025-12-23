@@ -34,11 +34,9 @@ add_executable(my-app
 
     elements/text.cpp
     elements/html.cpp
-    elements/screen.cpp
     elements/decorators.cpp
     elements/containers.cpp
     elements/factories.cpp
-    elements/helpers.cpp
     elements/image.cpp
 )
 

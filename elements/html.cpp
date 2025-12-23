@@ -1,7 +1,5 @@
-// elements/html.cpp (реализация)
 #include "elements.hpp"
 #include <fstream>
-#include <sstream>
 #include <filesystem>
 
 HTML::HTML(const std::string& html_content) 
@@ -11,7 +9,7 @@ HTML::HTML(const std::filesystem::path& file_path)
     : file_path_(file_path), is_file_path_(true) {
     // Проверяем существование файла при создании
     if (!std::filesystem::exists(file_path_)) {
-        throw std::runtime_error("HTML file not found: " + file_path_.string());
+        throw std::runtime_error(fmt::format("HTML file not found: {}", file_path_.string()));
     }
 }
 
@@ -20,8 +18,7 @@ std::string HTML::loadFromFile() const {
     
     std::ifstream file(file_path_);
     if (!file.is_open()) {
-        return "<div style='color: red;'>Error loading HTML file: " + 
-               file_path_.string() + "</div>";
+        return fmt::format("<div style='color: red;'>Error loading HTML file: {}</div>", file_path_.string());
     }
     
     std::stringstream buffer;
@@ -39,12 +36,6 @@ std::string HTML::Render() const {
     }
     
     return content;
-}
-
-Dimensions HTML::CalculateDimensions() const {
-    // Для HTML сложно рассчитать размеры в символах
-    // Можно приблизительно оценить или вернуть дефолтные значения
-    return {100, 10}; // Примерные значения
 }
 
 Element HTML::SetStyle(const std::string& style) {

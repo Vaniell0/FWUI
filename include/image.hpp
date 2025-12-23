@@ -1,42 +1,29 @@
 #ifndef IMAGE_HPP
 #define IMAGE_HPP
 
-#include <string>
-#include <vector>
-#include <memory>
 #include <opencv2/opencv.hpp>
-
 #include "elements.hpp"
 
-// Класс для конвертации изображений в ASCII-арт
 class ImageConverter {
 public:
     ImageConverter();
     ~ImageConverter();
     
-    // Загрузка изображения
     bool LoadImage(const std::string& path);
     
-    // Конвертация в ASCII арт
     std::vector<std::vector<AsciiPixel>> ConvertToAscii(
-        int cols,                 // Количество колонок в ASCII
-        int rows,                 // Количество строк в ASCII
-        bool use_color = true,    // Использовать цвет
-        bool invert = false       // Инвертировать яркость
+        int cols,
+        int rows,
+        bool use_color = true,
+        bool invert = false,
+        float contrast_factor = 1.5f,    // Фактор контрастности
+        float saturation_factor = 1.5f   // Фактор насыщенности
     );
     
-    // Получение оригинальных размеров
     int GetOriginalWidth() const { return original_width_; }
     int GetOriginalHeight() const { return original_height_; }
     
-    // Установка набора символов для конвертации
     void SetAsciiChars(const std::string& chars) { ascii_chars_ = chars; }
-    
-    // Генерация HTML из ASCII арта
-    std::string GenerateHTML(
-        const std::vector<std::vector<AsciiPixel>>& ascii_art,
-        int font_size_px = 16
-    ) const;
     
 private:
     cv::Mat original_image_;
@@ -44,10 +31,21 @@ private:
     int original_height_;
     std::string ascii_chars_;
     
-    // Вспомогательные методы
     std::string ColorToHex(const cv::Vec3b& color) const;
     char BrightnessToChar(int brightness, const std::string& charset) const;
-    cv::Vec3b GetAverageColor(const cv::Mat& region) const;
+
+    std::vector<std::vector<AsciiPixel>> ConvertToAscii(int cols, int rows, bool use_color, bool invert);
+
+    // Функции для улучшения цвета
+    cv::Vec3b EnhanceColor(const cv::Vec3b& color, float contrast, float saturation) const;
+    cv::Mat EnhanceContrast(const cv::Mat& image, float factor) const;
+    cv::Mat EnhanceSaturation(const cv::Mat& image, float factor) const;
+    
+    // Функция для группировки пикселей по цвету
+    std::vector<ColorSegment> GroupByColor(const std::vector<AsciiPixel>& row) const;
 };
+
+// Структура для сегмента цвета (группа пикселей одного цвета)
+struct ColorSegment;
 
 #endif // IMAGE_HPP

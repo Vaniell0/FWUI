@@ -1,8 +1,8 @@
 #include "elements.hpp"
-#include <fmt/core.h>
-#include <image.hpp>
+#include "image.hpp"
 
-// ==================== ФАБРИЧНЫЕ ФУНКЦИИ ====================
+#include <fstream>
+namespace fs = std::filesystem;
 
 Element text(const std::string& content) {
     return std::make_shared<Text>(content);
@@ -26,47 +26,6 @@ Element ol(const Elements& children) {
 
 Element separator() {
     return std::make_shared<Separator>();
-}
-
-Element screen(int width_chars, int height_chars, int font_width_px, int font_height_px) {
-    return std::make_shared<Screen>(width_chars, height_chars, font_width_px, font_height_px);
-}
-
-Element screen_from_image(const std::string& image_path, int target_width_px, int target_height_px,
-                         int font_width_px, int font_height_px,
-                         bool use_color, bool invert) {
-    return Screen::FromImage(image_path, target_width_px, target_height_px, 
-                            font_width_px, font_height_px, use_color, invert);
-}
-
-Element image(const std::string& path, int width_chars, int height_chars,
-             bool use_colors, bool invert) {
-    auto screen = std::make_shared<Screen>(width_chars, height_chars);
-    return screen->LoadImage(path, use_colors, invert);
-}
-
-Element image_auto(const std::string& path, int max_width_chars, int max_height_chars,
-                  bool use_colors, bool invert) {
-    ImageConverter converter;
-    if (!converter.LoadImage(path)) {
-        return text("Error loading image");
-    }
-    
-    // Автоматический расчет размеров с сохранением пропорций
-    int original_width = converter.GetOriginalWidth();
-    int original_height = converter.GetOriginalHeight();
-    double aspect_ratio = static_cast<double>(original_width) / original_height;
-    
-    int width_chars = max_width_chars;
-    int height_chars = static_cast<int>(width_chars / aspect_ratio);
-    
-    if (height_chars > max_height_chars) {
-        height_chars = max_height_chars;
-        width_chars = static_cast<int>(height_chars * aspect_ratio);
-    }
-    
-    auto screen = std::make_shared<Screen>(width_chars, height_chars);
-    return screen->LoadImage(path, use_colors, invert);
 }
 
 // Декораторы как функции
@@ -254,10 +213,6 @@ Element set_class(Element elem, const std::string& _class) {
     return elem->SetClass(_class);
 }
 
-#include <fstream>
-#include <filesystem>
-namespace fs = std::filesystem;
-
 // Просто HTML контент
 Element html(const std::string& content) {
     return std::make_shared<HTML>(content);
@@ -268,10 +223,16 @@ Element html_file(const std::filesystem::path& path) {
     return std::make_shared<HTML>(path);
 }
 
+Element image_auto(const std::filesystem::path& path, int max_width_chars, int max_height_chars,
+                  bool use_colors, bool invert)
+{
+    return std::make_shared<Text>("image");
+}
+
 // Универсальная загрузка (определяет тип по расширению)
 Element load(const std::filesystem::path& path) {
     if (!fs::exists(path)) {
-        return text("File not found: " + path.string()) | Color("red");
+        return text(fmt::format("File not found: {}", path.string())) | Color("red");
     }
     
     std::string ext = path.extension().string();
@@ -288,10 +249,10 @@ Element load(const std::filesystem::path& path) {
             return text(buffer.str());
         }},
         {".png", [](const fs::path& p) {
-            return image_auto(p.string(), 80, 40);
+            return image_auto(p, 400, 400, true, true);
         }},
-        {".jpg", [](const fs::path& p) { return image_auto(p.string(), 80, 40); }},
-        {".jpeg", [](const fs::path& p) { return image_auto(p.string(), 80, 40); }}
+        {".jpg", [](const fs::path& p) { return image_auto(p, 400, 400, true, true); }},
+        {".jpeg", [](const fs::path& p) { return image_auto(p, 400, 400, true, true); }}
     };
     
     auto it = handlers.find(ext);
@@ -375,8 +336,6 @@ Decorator Padding(int vertical, int horizontal) {
 Decorator Padding(int top, int right, int bottom, int left) { 
     return {[top, right, bottom, left](Element elem) { return padding(elem, top, right, bottom, left); }};
 }
-
-// ==================== ОПЕРАТОРЫ ====================
 
 Element operator|(Element element, const Decorator& decorator) {
     return decorator(element);

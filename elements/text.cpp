@@ -1,7 +1,4 @@
 #include "elements.hpp"
-#include <fmt/core.h>
-
-// ==================== КЛАСС TEXT ====================
 
 Text::Text(const std::string& content) : content_(content) {}
 
@@ -13,11 +10,6 @@ std::string Text::Render() const {
     std::string tag = "span";
     std::string attrs = Node::FormatAttributes(attributes_);
     return fmt::format("<{}{}>{}</{}>", tag, attrs, escapedContent, tag);
-}
-
-Dimensions Text::CalculateDimensions() const {
-    // В символах: длина текста × 1 строка
-    return {static_cast<int>(content_.length()), 1};
 }
 
 Element Text::SetStyle(const std::string& style) {

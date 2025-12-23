@@ -1,7 +1,7 @@
 #include "pages.hpp"
 
 // Создание навигации
-string createNavigation() {
+REGISTER_COMPONENT(navigation, [](){
     auto nav = hbox({
         text("Главная") | Hyperlink("/", "_self") | SetClass("nav-link"),
         text("Обо мне") | Hyperlink("#about", "_self") | SetClass("nav-link"),
@@ -10,4 +10,4 @@ string createNavigation() {
     }) | SetClass("navbar");
     
     return nav->Render();
-}
+});

@@ -1,47 +1,46 @@
 #ifndef PAGES_HPP
 #define PAGES_HPP
 
+#include <map>
+#include <vector>
+#include <filesystem>
+#include <nlohmann/json.hpp>
+
 #include "elements.hpp"
-using namespace std;
-#include <string>
-#include <fmt/core.h>
+#include "pageManager.hpp"
 
-namespace fs = filesystem;
-inline fs::path base_path = fs::current_path().parent_path();
-// Структура для изображения
+namespace fs = std::filesystem;
+using json = nlohmann::json;
+
+// Структуры данных
 struct Img {
-    Img() = default;
-    Img(const fs::path& path) : _path(path) {
-        if (!fs::exists(path)) {
-            throw invalid_argument("Img: файл не найден: " + path.string());
-        }
-    }
     fs::path _path;
+    Img() = default;
+    Img(const fs::path& path) : _path(path) {}
 };
 
-// Структура проекта
 struct Project {
-    string id;
-    string name;
-    string description;
-    string tech;
-    string details;
-    string github_link;
+    std::string id;
+    std::string name;
+    std::string description;
+    std::string tech;
+    std::string details;
+    std::string github_link;
 };
 
-string getRandomBrightColor();
+// Глобальные переменные
+extern fs::path base_path;
+extern std::map<std::string, Project> projectsById;
+extern std::vector<Project> projects;
+
+// Функция загрузки шаблона
+std::string loadTemplate(const std::string& filename, 
+                        const std::map<std::string, std::string>& variables);
+
+// Вспомогательные функции
+std::vector<Project> loadProjects();
+std::string getRandomBrightColor();
 int calculateAge(int day, int month, int year);
-string getYearAddition(int count);
-
-string createNavigation();
-string createHeader();
-string createAboutSection(const Img& avatar);
-string createProjectsSection();
-string createContactForm();
-string createContactSection();
-string createFooter();
-
-string createProjectPage(const Project& project);
-vector<Project> loadProjects();
+std::string getYearAddition(int count);
 
 #endif

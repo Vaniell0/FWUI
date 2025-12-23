@@ -2,19 +2,15 @@
 #define ELEMENTS_HPP
 
 #include "node.hpp"
-#include <string>
-#include <functional>
 #include <filesystem>
-#include <map>
 
-// ==================== ОБЪЯВЛЕНИЯ КЛАССОВ ====================
+namespace fs = std::filesystem;
 
 // Text класс
 class Text : public Node {
 public:
     explicit Text(const std::string& content);
     std::string Render() const override;
-    Dimensions CalculateDimensions() const override;
     Element SetStyle(const std::string& style) override;
     Element SetClass(const std::string& cls) override;
     Element SetID(const std::string& id) override;
@@ -27,10 +23,9 @@ class HTML : public Node {
 public:
     // Конструкторы для разных способов создания
     explicit HTML(const std::string& html_content);
-    explicit HTML(const std::filesystem::path& file_path);
+    explicit HTML(const fs::path& file_path);
     
     std::string Render() const override;
-    Dimensions CalculateDimensions() const override;
     Element SetStyle(const std::string& style) override;
     Element SetClass(const std::string& cls) override;
     Element SetID(const std::string& id) override;
@@ -45,7 +40,7 @@ private:
     std::string html_content_;
     std::map<std::string, std::string> attributes_;
     bool is_file_path_ = false;
-    std::filesystem::path file_path_;
+    fs::path file_path_;
     
     // Вспомогательный метод для загрузки файла
     std::string loadFromFile() const;
@@ -55,7 +50,6 @@ class Ul : public Node {
 public:
     explicit Ul(const Elements& children = {});
     std::string Render() const override;
-    Dimensions CalculateDimensions() const override;
     Element SetStyle(const std::string& style) override;
     Element SetClass(const std::string& cls) override;
     Element SetID(const std::string& id) override;
@@ -68,7 +62,6 @@ class Ol : public Node {
 public:
     explicit Ol(const Elements& children = {});
     std::string Render() const override;
-    Dimensions CalculateDimensions() const override;
     Element SetStyle(const std::string& style) override;
     Element SetClass(const std::string& cls) override;
     Element SetID(const std::string& id) override;
@@ -76,67 +69,57 @@ private:
     std::map<std::string, std::string> attributes_;
 };
 
-struct ScreenPixel {
-    std::string character;
-    std::string color;
-    
-    ScreenPixel(std::string ch = " ", const std::string& col = "") 
-        : character(ch), color(col) {}
-};
-
 struct AsciiPixel {
     char character;
-    std::string color; // hex цвет, например "#FF0000"
+    std::string color;
     
-    AsciiPixel(char ch = ' ', const std::string& col = "#000000")
-        : character(ch), color(col) {}
+    AsciiPixel() : character(' '), color("#000000") {}
+    AsciiPixel(char ch, const std::string& col) : character(ch), color(col) {}
 };
 
-// Screen класс
-class Screen : public Node {
+struct ColorSegment {
+    std::string color;
+    std::string text;
+    int length;
+    
+    ColorSegment() : color("#000000"), text(""), length(0) {}
+    ColorSegment(const std::string& col, const std::string& txt, int len) 
+        : color(col), text(txt), length(len) {}
+};
+
+// ASCII Art элемент
+class AsciiArt : public Node {
 public:
-    Screen(int width_chars, int height_chars, int font_width_px = 8, int font_height_px = 16);
-
-    double CalculateLetterSpacing() const;
-
-    void SetAsciiArt(const std::vector<std::vector<AsciiPixel>> &ascii_art);
-    Element LoadImage(const std::string &path, bool use_color, bool invert);
-    static Element FromImage(const std::string &image_path, int target_width_px, int target_height_px, int font_width_px, int font_height_px, bool use_color, bool invert);
-
-    std::string GetStyle() const override {
-        auto it = attributes_.find("style");
-        return (it != attributes_.end()) ? it->second : "";
-    }
-    void SetPixel(int x, int y, std::string ch, std::string color);
-    ScreenPixel GetPixel(int x, int y) const;
-    std::string GetPixelColor(int x, int y) const;
-    void Clear(std::string ch = " ");
-    void FillWithPattern();
-    void CreateBorder();
+    AsciiArt(const std::string& image_path, 
+             int max_width_chars, 
+             int max_height_chars,
+             bool use_colors = true,
+             bool invert = false,
+             int font_size_px = 3);
     
     std::string Render() const override;
-    Dimensions CalculateDimensions() const override;
-    Dimensions CalculatePixelDimensions(int font_width_px = 8, int font_height_px = 16) const override;
-    
-    int GetWidthChars() const;
-    int GetHeightChars() const;
-    int GetFontWidthPx() const;
-    int GetFontHeightPx() const;
-    Dimensions GetPixelDimensions() const;
-    
     Element SetStyle(const std::string& style) override;
-    Element SetBackgroundColor(const std::string &color);
-    Element SetClass(const std::string &cls) override;
+    Element SetClass(const std::string& cls) override;
     Element SetID(const std::string& id) override;
-    Element SetFontSize(int font_width_px, int font_height_px);
+    
+    // Методы для обновления свойств
+    Element UpdateImage(const fs::path& new_path);
+    Element UpdateImage(const std::string& img);
+    Element SetSize(int max_width_chars, int max_height_chars);
+    Element SetUseColors(bool use_colors);
+    Element SetInvert(bool invert);
+    Element SetFontSize(int font_size_px);
     
 private:
-    int width_chars_;
-    int height_chars_;
-    int font_width_px_;
-    int font_height_px_;
-    std::vector<std::vector<ScreenPixel>> pixels_;
+    std::string image_path_;
+    int max_width_chars_;
+    int max_height_chars_;
+    bool use_colors_;
+    bool invert_;
+    int font_size_px_;
     std::map<std::string, std::string> attributes_;
+    
+    std::string generateAsciiArt() const;
 };
 
 // Декораторы
@@ -144,7 +127,6 @@ class BoldDecorator : public Node {
 public:
     explicit BoldDecorator(Element child);
     std::string Render() const override;
-    Dimensions CalculateDimensions() const override;
     Element SetStyle(const std::string& style) override;
     Element SetClass(const std::string& cls) override;
     Element SetID(const std::string& id) override;
@@ -156,7 +138,6 @@ class ItalicDecorator : public Node {
 public:
     explicit ItalicDecorator(Element child);
     std::string Render() const override;
-    Dimensions CalculateDimensions() const override;
     Element SetStyle(const std::string& style) override;
     Element SetClass(const std::string& cls) override;
     Element SetID(const std::string& id) override;
@@ -168,7 +149,6 @@ class UnderlineDecorator : public Node {
 public:
     explicit UnderlineDecorator(Element child);
     std::string Render() const override;
-    Dimensions CalculateDimensions() const override;
     Element SetStyle(const std::string& style) override;
     Element SetClass(const std::string& cls) override;
     Element SetID(const std::string& id) override;
@@ -180,7 +160,6 @@ class StrikethroughDecorator : public Node {
 public:
     explicit StrikethroughDecorator(Element child);
     std::string Render() const override;
-    Dimensions CalculateDimensions() const override;
     Element SetStyle(const std::string& style) override;
     Element SetClass(const std::string& cls) override;
     Element SetID(const std::string& id) override;
@@ -192,7 +171,6 @@ class SpanDecorator : public Node {
 public:
     SpanDecorator(Element child, const std::map<std::string, std::string>& attrs = {});
     std::string Render() const override;
-    Dimensions CalculateDimensions() const override;
     Element SetStyle(const std::string& style) override;
     Element SetClass(const std::string& cls) override;
     Element SetID(const std::string& id) override;
@@ -205,7 +183,6 @@ class AnchorDecorator : public Node {
 public:
     AnchorDecorator(Element child, const std::string& href, const std::string& target = "_blank");
     std::string Render() const override;
-    Dimensions CalculateDimensions() const override;
     Element SetStyle(const std::string& style) override;
     Element SetClass(const std::string& cls) override;
     Element SetID(const std::string& id) override;
@@ -221,7 +198,6 @@ public:
     HBox() = default;
     explicit HBox(const Elements& children);
     std::string Render() const override;
-    Dimensions CalculateDimensions() const override;
     Element SetStyle(const std::string& style) override;
     Element SetClass(const std::string& cls) override;
     Element SetID(const std::string& id) override;
@@ -234,7 +210,6 @@ public:
     VBox() = default;
     explicit VBox(const Elements& children);
     std::string Render() const override;
-    Dimensions CalculateDimensions() const override;
     Element SetStyle(const std::string& style) override;
     Element SetClass(const std::string& cls) override;
     Element SetID(const std::string& id) override;
@@ -246,22 +221,12 @@ class Separator : public Node {
 public:
     Separator();
     std::string Render() const override;
-    Dimensions CalculateDimensions() const override;
     Element SetStyle(const std::string& style) override;
     Element SetClass(const std::string& cls) override;
     Element SetID(const std::string& id) override;
 private:
     std::map<std::string, std::string> attributes_;
 };
-
-// ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
-
-std::pair<int, int> CalculateTerminalSize(int image_width_px, int image_height_px, 
-                                         int font_width_px = 8, int font_height_px = 16);
-Dimensions CharsToPixels(int cols, int rows, int font_width_px = 8, int font_height_px = 16);
-std::pair<int, int> PixelsToChars(int width_px, int height_px, int font_width_px = 8, int font_height_px = 16);
-
-// ==================== СТРУКТУРА ДЕКОРАТОРА ====================
 
 struct Decorator {
     std::function<Element(Element)> apply;
@@ -273,8 +238,6 @@ struct Decorator {
     }
 };
 
-// ==================== ФАБРИЧНЫЕ ФУНКЦИИ ====================
-
 Element text(const std::string& content);
 Element hbox(const Elements& children = {});
 Element vbox(const Elements& children = {});
@@ -283,16 +246,8 @@ Element ol(const Elements& children = {});
 
 Element separator();
 
-Element screen(int width_chars, int height_chars, int font_width_px = 8, int font_height_px = 16);
-Element screen_from_image(const std::string& image_path, int target_width_px, int target_height_px,
-                         int font_width_px = 8, int font_height_px = 16,
-                         bool use_color = true, bool invert = false);
-
-// Функции для изображений
-Element image(const std::string& path, int width_chars, int height_chars,
-             bool use_colors = true, bool invert = false);
-Element image_auto(const std::string& path, int max_width_chars, int max_height_chars,
-                  bool use_colors = true, bool invert = false);
+Element image_auto(const fs::path& path, int max_width_chars, int max_height_chars,
+                  bool use_colors, bool invert);
 
 // Декораторы как функции
 Element bold(Element elem);
@@ -338,8 +293,8 @@ Element set_style(Element elem, const std::string& style);
 Element set_class(Element elem, const std::string& _class);
 
 Element html(const std::string& content);
-Element html_file(const std::filesystem::path& path);
-Element load(const std::filesystem::path& path);
+Element html_file(const fs::path& path);
+Element load(const fs::path& path);
 
 // Декораторы
 Decorator AlignLeft();
@@ -381,8 +336,6 @@ Decorator Padding(int top, int right, int bottom, int left);
 
 Decorator SetStyle(const std::string& style);
 Decorator SetClass(const std::string& _class);
-
-// ==================== ОПЕРАТОРЫ ====================
 
 Element operator|(Element element, const Decorator& decorator);
 Element& operator|=(Element& element, const Decorator& decorator);

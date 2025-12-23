@@ -1,7 +1,4 @@
 #include "elements.hpp"
-#include <fmt/core.h>
-
-// ==================== КЛАССЫ ДЕКОРАТОРОВ ====================
 
 // BoldDecorator
 BoldDecorator::BoldDecorator(Element child) : decorated_child_(child) {
@@ -13,13 +10,6 @@ std::string BoldDecorator::Render() const {
         return fmt::format("<b>{}</b>", decorated_child_->Render());
     }
     return "<b></b>";
-}
-
-Dimensions BoldDecorator::CalculateDimensions() const {
-    if (decorated_child_) {
-        return decorated_child_->CalculateDimensions();
-    }
-    return {0, 0};
 }
 
 Element BoldDecorator::SetStyle(const std::string& style) {
@@ -55,13 +45,6 @@ std::string ItalicDecorator::Render() const {
     return "<i></i>";
 }
 
-Dimensions ItalicDecorator::CalculateDimensions() const {
-    if (decorated_child_) {
-        return decorated_child_->CalculateDimensions();
-    }
-    return {0, 0};
-}
-
 Element ItalicDecorator::SetStyle(const std::string& style) {
     if (decorated_child_) {
         decorated_child_->SetStyle(style);
@@ -95,13 +78,6 @@ std::string UnderlineDecorator::Render() const {
     return "<u></u>";
 }
 
-Dimensions UnderlineDecorator::CalculateDimensions() const {
-    if (decorated_child_) {
-        return decorated_child_->CalculateDimensions();
-    }
-    return {0, 0};
-}
-
 Element UnderlineDecorator::SetStyle(const std::string& style) {
     if (decorated_child_) {
         decorated_child_->SetStyle(style);
@@ -133,13 +109,6 @@ std::string StrikethroughDecorator::Render() const {
         return fmt::format("<s>{}</s>", decorated_child_->Render());
     }
     return "<s></s>";
-}
-
-Dimensions StrikethroughDecorator::CalculateDimensions() const {
-    if (decorated_child_) {
-        return decorated_child_->CalculateDimensions();
-    }
-    return {0, 0};
 }
 
 Element StrikethroughDecorator::SetStyle(const std::string& style) {
@@ -177,19 +146,12 @@ std::string SpanDecorator::Render() const {
     return fmt::format("<span{}></span>", attrs);
 }
 
-Dimensions SpanDecorator::CalculateDimensions() const {
-    if (decorated_child_) {
-        return decorated_child_->CalculateDimensions();
-    }
-    return {0, 0};
-}
-
 Element SpanDecorator::SetStyle(const std::string& style) {
     // Комбинируем стили вместо замены
     auto it = attributes_.find("style");
     if (it != attributes_.end() && !it->second.empty()) {
         // Добавляем новый стиль после существующего
-        it->second = it->second + " " + style;
+        it->second = fmt::format("{} {}", it->second, style);
     } else {
         attributes_["style"] = style;
     }
@@ -224,13 +186,6 @@ std::string AnchorDecorator::Render() const {
         return fmt::format("<a{}>{}</a>", attrs_str, decorated_child_->Render());
     }
     return fmt::format("<a{}></a>", attrs_str);
-}
-
-Dimensions AnchorDecorator::CalculateDimensions() const {
-    if (decorated_child_) {
-        return decorated_child_->CalculateDimensions();
-    }
-    return {0, 0};
 }
 
 Element AnchorDecorator::SetStyle(const std::string& style) {

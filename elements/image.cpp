@@ -1,5 +1,4 @@
 #include "image.hpp"
-#include <fmt/core.h>
 #include <algorithm>
 #include <cmath>
 
@@ -37,15 +36,6 @@ char ImageConverter::BrightnessToChar(int brightness, const std::string& charset
     index = std::clamp(index, 0, static_cast<int>(charset.length() - 1));
     
     return charset[index];
-}
-
-cv::Vec3b ImageConverter::GetAverageColor(const cv::Mat& region) const {
-    cv::Scalar average = cv::mean(region);
-    return cv::Vec3b(
-        static_cast<uchar>(average[0]),
-        static_cast<uchar>(average[1]),
-        static_cast<uchar>(average[2])
-    );
 }
 
 std::vector<std::vector<AsciiPixel>> ImageConverter::ConvertToAscii(
@@ -91,57 +81,4 @@ std::vector<std::vector<AsciiPixel>> ImageConverter::ConvertToAscii(
     }
     
     return result;
-}
-
-std::string ImageConverter::GenerateHTML(
-    const std::vector<std::vector<AsciiPixel>>& ascii_art,
-    int font_size_px) const {
-    
-    if (ascii_art.empty()) return "";
-    
-    int rows = ascii_art.size();
-    int cols = ascii_art[0].size();
-    
-    fmt::memory_buffer html;
-    fmt::format_to(std::back_inserter(html), "<div style=\""
-        "font-family: 'Courier New', monospace; "
-        "font-size: {}px; "
-        "line-height: 1; "
-        "white-space: pre; "
-        "letter-spacing: {}px; "
-        "display: inline-block;"
-        "\">", 
-        font_size_px, 
-        font_size_px * 0.4);
-    
-    for (int y = 0; y < rows; ++y) {
-        for (int x = 0; x < cols; ++x) {
-            const AsciiPixel& pixel = ascii_art[y][x];
-            
-            // Экранируем специальные HTML символы
-            std::string escaped_char(1, pixel.character);
-            if (pixel.character == '<') escaped_char = "&lt;";
-            else if (pixel.character == '>') escaped_char = "&gt;";
-            else if (pixel.character == '&') escaped_char = "&amp;";
-            else if (pixel.character == '"') escaped_char = "&quot;";
-            else if (pixel.character == '\'') escaped_char = "&#39;";
-            
-            // Если цвет черный или не указан, просто выводим символ
-            if (pixel.color == "#000000" || pixel.color.empty()) {
-                // Используем fmt::format вместо format_to для строковых литералов
-                html.append(escaped_char);
-            } else {
-                // Используем format_to для форматированной строки
-                fmt::format_to(std::back_inserter(html), 
-                    "<span style=\"color: {};\">{}</span>",
-                    pixel.color, escaped_char);
-            }
-        }
-        if (y < rows - 1) {
-            fmt::format_to(std::back_inserter(html), "\n");
-        }
-    }
-    
-    fmt::format_to(std::back_inserter(html), "</div>");
-    return fmt::to_string(html);
 }
