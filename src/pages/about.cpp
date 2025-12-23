@@ -1,11 +1,11 @@
 #include "pages.hpp"
 
 // Создание секции "Обо мне"
-REGISTER_COMPONENT(about, [](const Img& avatar){
+REGISTER_COMPONENT(about, [](const Img &avatar){
     int experienceYears = calculateAge(1, 1, 2021);
     
     auto about = hbox({
-        load("/home/vaniello/Desktop/projects/FWUI/avatar.png") | SetClass("avatar-container text-black"),
+        ascii_art("/home/vaniello/Desktop/projects/FWUI/avatar.png", 320, 320, false, true, 3) | SetClass("avatar-container text-black"),
         
         vbox({
             text("Навыки:") | Bold() | SetClass("section-title text-bolder"),
@@ -24,5 +24,4 @@ REGISTER_COMPONENT(about, [](const Img& avatar){
     }) | SetClass("section about-section");
 
     about->SetID("about");
-    return about->Render();
-});
+    return about->Render(); });

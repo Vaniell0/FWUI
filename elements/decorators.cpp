@@ -134,11 +134,11 @@ Element StrikethroughDecorator::SetID(const std::string& id) {
 
 // SpanDecorator
 SpanDecorator::SpanDecorator(Element child, const std::map<std::string, std::string>& attrs) 
-    : decorated_child_(child), attributes_(attrs) {
-    if (child) AddChild(child);
-}
+    : decorated_child_(child), attributes_(attrs)
+{ if (child) AddChild(child); }
 
-std::string SpanDecorator::Render() const {
+std::string SpanDecorator::Render() const
+{
     std::string attrs = Node::FormatAttributes(attributes_);
     if (decorated_child_) {
         return fmt::format("<span{}>{}</span>", attrs, decorated_child_->Render());
@@ -146,7 +146,8 @@ std::string SpanDecorator::Render() const {
     return fmt::format("<span{}></span>", attrs);
 }
 
-Element SpanDecorator::SetStyle(const std::string& style) {
+Element SpanDecorator::SetStyle(const std::string& style)
+{
     // Комбинируем стили вместо замены
     auto it = attributes_.find("style");
     if (it != attributes_.end() && !it->second.empty()) {
@@ -170,9 +171,8 @@ Element SpanDecorator::SetID(const std::string& id) {
 
 // AnchorDecorator
 AnchorDecorator::AnchorDecorator(Element child, const std::string& href, const std::string& target) 
-    : decorated_child_(child), href_(href), target_(target) {
-    if (child) AddChild(child);
-}
+    : decorated_child_(child), href_(href), target_(target)
+{ if (child) AddChild(child); }
 
 std::string AnchorDecorator::Render() const {
     std::map<std::string, std::string> attrs = {

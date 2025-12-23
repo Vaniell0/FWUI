@@ -1,7 +1,7 @@
 # Исключить ВСЁ
 /*
 
-# Затем РАЗРЕШИТЬ нужные файлы и папки
+# РАЗРЕШИТЬ нужные файлы и папки
 !/.gitignore
 !/avatar.png
 !/CMakeLists.txt
@@ -15,10 +15,9 @@
 !/include/*
 !/src/
 !/src/*
+!/data/
+!/data/*
 !/static/
 !/static/*
 !/template/
 !/template/*
-
-# Исключить пустые директории (опционально)
-!.gitkeep

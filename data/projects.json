@@ -1,0 +1,34 @@
+[
+    {
+        "id": "fwui",
+        "name": "FWUI Framework",
+        "description": "Фреймворк для терминального UI с поддержкой веб-рендеринга",
+        "tech": "C++, HTML, CSS, JavaScript",
+        "details": "FWUI - это современный фреймворк для создания пользовательских интерфейсов в веб. Он предоставляет декларативный API для создания UI-компонентов и поддерживает различные стили оформления.",
+        "github_link": "https://github.com/Vaniell0/fwui"
+    },
+    {
+        "id": "image2ascii",
+        "name": "Image2ASCII",
+        "description": "Конвертер изображений в ASCII-арт с сохранением цветов",
+        "tech": "C++, OpenCV",
+        "details": "Программа преобразует любые изображения в текстовое представление с сохранением цветов и деталей. Поддерживает различные алгоритмы обработки и настройки вывода.",
+        "github_link": "https://github.com/Vaniell0/Image2ASCII"
+    },
+    {
+        "id": "crow-template", 
+        "name": "Crow Template",
+        "description": "Веб-сервер с шаблонами и интеграцией C++",
+        "tech": "C++, Crow, HTML, CSS",
+        "details": "Шаблон для быстрого старта веб-приложений на C++ с использованием фреймворка Crow. Включает систему шаблонов, статические файлы и примеры REST API.",
+        "github_link": "https://github.com/Vaniell0/crow-template"
+    },
+    {
+        "id": "terminal-game",
+        "name": "Консольная игра",
+        "description": "Openworld с рендером на C#",
+        "tech": "C#, Console GUI",
+        "details": "Игра с открытым миром, полностью реализованная в консоли с использованием ASCII-графики и процедурной генерации ландшафта.",
+        "github_link": "https://github.com/Vaniell0/terminal-game"
+    }
+]

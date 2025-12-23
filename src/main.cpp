@@ -15,7 +15,7 @@ vector<Project> projects = loadProjects();
 #define CROW_STATIC_DIRECTORY (base_path / "static").string()
 #include <crow.h>
 
-int main() {    
+int main() {
     crow::SimpleApp app;
     app.add_static_dir();
     
