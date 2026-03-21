@@ -1,0 +1,15 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# FWUI CLI — static site generator and development server.
+#
+# Usage:
+#   fwui build              # Render pages/ → dist/
+#   fwui serve [--dev]      # Start development server
+#   fwui new <name>         # Create new project scaffold
+
+$LOAD_PATH.unshift File.expand_path('../lib', __dir__)
+require 'fwui'
+require_relative '../lib/fwui/cli'
+
+FWUI::CLI.run(ARGV)
