@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x86_64
+          - os: macos-latest
+            platform: macos-arm64
+          - os: windows-latest
+            platform: windows-x86_64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libfmt-dev nlohmann-json3-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install fmt nlohmann-json
+
+      - name: Configure CMake (Unix)
+        if: runner.os != 'Windows'
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        run: cmake -B build
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          TAG=${GITHUB_REF_NAME}
+          DIR="fwui-${TAG}-${{ matrix.platform }}"
+          mkdir -p "${DIR}/bin" "${DIR}/lib" "${DIR}/include"
+
+          # Static library
+          cp build/libfwui.a "${DIR}/lib/" 2>/dev/null || true
+
+          # Executables
+          for exe in fwui-demo fwui-ssg fwui-embed fwui-bench fwui-bench-mem; do
+            cp "build/${exe}" "${DIR}/bin/" 2>/dev/null || true
+          done
+
+          # Headers
+          cp -r include/fwui "${DIR}/include/"
+
+          # Examples
+          cp -r examples "${DIR}/"
+
+          tar czf "${DIR}.tar.gz" "${DIR}"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $TAG = $env:GITHUB_REF_NAME
+          $DIR = "fwui-${TAG}-${{ matrix.platform }}"
+          New-Item -ItemType Directory -Force -Path "$DIR/bin", "$DIR/lib", "$DIR/include"
+
+          # Static library
+          Copy-Item "build/Release/fwui.lib" "$DIR/lib/" -ErrorAction SilentlyContinue
+
+          # Executables
+          foreach ($exe in @("fwui-demo", "fwui-ssg", "fwui-embed", "fwui-bench", "fwui-bench-mem")) {
+            Copy-Item "build/Release/${exe}.exe" "$DIR/bin/" -ErrorAction SilentlyContinue
+          }
+
+          # Headers
+          Copy-Item -Recurse "include/fwui" "$DIR/include/"
+
+          # Examples
+          Copy-Item -Recurse "examples" "$DIR/"
+
+          Compress-Archive -Path "$DIR" -DestinationPath "${DIR}.zip"
+
+      - name: Upload release artifact (Unix)
+        if: runner.os != 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: fwui-*.tar.gz
+
+      - name: Upload release artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: fwui-*.zip
+
+  gem:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+
+      - name: Build gem
+        run: |
+          cd ruby/lib && ruby -e "require_relative 'fwui/version'; puts FWUI::VERSION"
+          gem build ../../fwui.gemspec
+
+      - name: Upload gem artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.gem"

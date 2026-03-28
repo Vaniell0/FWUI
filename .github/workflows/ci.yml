@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  cpp:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: macos-latest
+          - os: windows-latest
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libfmt-dev nlohmann-json3-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install fmt nlohmann-json
+
+      - name: Configure CMake (Unix)
+        if: runner.os != 'Windows'
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DFWUI_BUILD_TESTS=ON
+
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        run: cmake -B build -DFWUI_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Run C++ tests
+        run: ctest --test-dir build --output-on-failure -C Release
+
+  ruby-native:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+
+      - name: Install rake-compiler
+        run: gem install rake-compiler
+
+      - name: Download vendored headers
+        working-directory: fwui-native/ext/fwui_native
+        run: |
+          mkdir -p vendor/nlohmann
+          curl -sL -o vendor/nlohmann/json.hpp \
+            https://github.com/nlohmann/json/releases/download/v3.11.3/json.hpp
+          curl -sL -o vendor/inja.hpp \
+            https://raw.githubusercontent.com/pantor/inja/v3.4.0/single_include/inja/inja.hpp
+
+      - name: Build C extension
+        working-directory: fwui-native
+        run: rake compile
+
+      - name: Run tests
+        working-directory: fwui-native
+        run: ruby test/test_native.rb
