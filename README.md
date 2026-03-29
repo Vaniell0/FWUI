@@ -307,6 +307,43 @@ FWUI::Native.build {
 </div>
 ```
 
+### DOCX / ODT Export
+
+Node tree → DOCX / ODT. Zero dependencies — ZIP + XML в C++:
+
+```ruby
+# Базовый экспорт
+File.binwrite("report.docx", tree.to_docx)
+File.binwrite("report.odt", tree.to_odt)
+
+# С опциями
+tree.to_docx({
+  "page_size" => "A4",
+  "default_font" => "Times New Roman",
+  "default_font_size" => "14pt",
+  "line_spacing" => "1.5",
+  "first_line_indent" => "1.25cm",
+  "header" => "Курсовая работа",
+  "page_numbers" => true,
+})
+```
+
+ГОСТ пресет (А4, Times New Roman 14pt, 1.5 интервал, красная строка 1.25cm, поля 30/15/20/20mm):
+
+```ruby
+FWUI::Doc.to_docx(tree, preset: :gost, page_numbers: true)
+FWUI::Doc.to_odt(tree, preset: :gost)
+```
+
+Разрывы страниц:
+
+```ruby
+FWUI.page_break                                              # фабрика
+FWUI.p("Новая страница").set_style("page-break-before", "always")  # CSS
+```
+
+Таблицы, списки, изображения, гиперссылки, колонтитулы, нумерация страниц, colspan/rowspan.
+
 ### Performance
 
 500 карточек, 300 итераций, GC off:
@@ -352,9 +389,9 @@ FWUI/
 │   ├── lib/fwui/          #   Registry, PageLoader, WebSocket, CLI
 │   └── pages/             #   страницы (автозагрузка)
 ├── fwui-native/           # C extension + Inja (BSL 1.1)
-│   ├── ext/fwui_native/   #   fwui_native.c, fwui_inja.cpp
-│   ├── lib/fwui/native/   #   packed_builder.rb
-│   └── test/              #   117 тестов + бенчмарки
+│   ├── ext/fwui_native/   #   fwui_native.c, fwui_inja.cpp, fwui_docx.cpp
+│   ├── lib/fwui/native/   #   packed_builder.rb, docx.rb, doc.rb
+│   └── test/              #   тесты + бенчмарки
 ├── examples/              # Ruby + C++ примеры
 ├── include/fwui/          # C++ API (BSL 1.1)
 ├── src/                   # C++ реализация
@@ -382,8 +419,8 @@ cmake -B build -G Ninja && cmake --build build
 Подробная документация: [`docs/`](docs/index.md)
 
 - Ruby DSL, layout, pipe-оператор, Registry, сервер, WebSocket, hot-reload
-- fwui-native: оптимизации, baked templates, PackedBuilder, Inja, бенчмарки
-- C++ API: Node, Renderer, Registry, Inja, SSG
+- fwui-native: оптимизации, baked templates, PackedBuilder, Inja, DOCX/ODT, бенчмарки
+- C++ API: Node, Renderer, Registry, Inja, PDF, SSG
 
 ## Why FWUI
 
@@ -406,6 +443,7 @@ cmake -B build -G Ninja && cmake --build build
 - **Admin dashboards и monitoring panels** — partial invalidation: обновление 2 виджетов из 50 за 0.014 ms, 98% кеша переиспользуется, 14 объектов/тик вместо тысяч
 - **Web UI для роутеров и embedded** — C++ API: нативный бинарник без runtime, заменяет Lua/PHP стеки на устройствах с ограниченной памятью. Ruby версия — 18 MB RSS, тоже подходит для не самых тесных устройств
 - **Email template generation** — чистый HTML output, без браузера, без Node.js toolchain
+- **Генерация документов** — DOCX/ODT/PDF экспорт из одного Node tree, ГОСТ пресет для академических работ
 - **HTMX фрагменты** — SPA-like интерактивность без JS фреймворков, WebSocket hot-reload из коробки
 - **Static site generation** — CLI: `fwui build`, рендер pages/ → dist/
 

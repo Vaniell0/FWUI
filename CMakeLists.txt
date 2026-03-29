@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(FWUI VERSION 1.1.0 LANGUAGES CXX)
+project(FWUI VERSION 1.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -32,13 +32,13 @@ if(NOT nlohmann_json_FOUND)
   FetchContent_MakeAvailable(nlohmann_json)
 endif()
 
-# Inja (header-only, Populate only — its CMakeLists.txt conflicts with our nlohmann_json)
-cmake_policy(SET CMP0169 OLD)
+# Inja (header-only — use SOURCE_SUBDIR trick to skip its broken CMakeLists.txt)
 FetchContent_Declare(inja
     GIT_REPOSITORY https://github.com/pantor/inja.git
     GIT_TAG        v3.4.0
+    SOURCE_SUBDIR  _unused
 )
-FetchContent_Populate(inja)
+FetchContent_MakeAvailable(inja)
 set(INJA_INCLUDE_DIR ${inja_SOURCE_DIR}/include)
 
 # libharu (PDF generation)

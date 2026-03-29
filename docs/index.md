@@ -55,6 +55,7 @@ page = layout("My Site",
 ### fwui-native (BSL 1.1)
 
 - [fwui-native](fwui-native.md) — C extension: рендер, кеш, Inja шаблоны
+- [docx-odt](docx-odt.md) — DOCX/ODT экспорт: страницы, шрифты, колонтитулы, ГОСТ
 - [baked-templates](baked-templates.md) — компиляция шаблонов в статические чанки + слоты
 - [packed-builder](packed-builder.md) — opcode stream: рендер без Node-объектов
 - [performance](performance.md) — бенчмарки, рекомендации по выбору режима
@@ -90,6 +91,7 @@ fwui-native (fwui-native/) — BSL 1.1
 ├── Inja Template Engine (Jinja2-совместимый)
 ├── Baked templates (статические чанки + слоты)
 ├── PackedBuilder (opcode stream → C → HTML)
+├── DOCX/ODT export (zero-dep ZIP+XML, ГОСТ пресет)
 ├── UI::Component (упрощённый API поверх baked)
 └── Thread Safety (per-thread буферы, mutex)
 

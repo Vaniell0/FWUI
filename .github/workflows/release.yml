@@ -11,6 +11,7 @@ permissions:
 jobs:
   cpp:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -37,11 +38,11 @@ jobs:
 
       - name: Configure CMake (Unix)
         if: runner.os != 'Windows'
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DFWUI_BUILD_PDF=ON
 
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
-        run: cmake -B build
+        run: cmake -B build -DFWUI_BUILD_PDF=ON
 
       - name: Build
         run: cmake --build build --config Release
@@ -57,7 +58,7 @@ jobs:
           cp build/libfwui.a "${DIR}/lib/" 2>/dev/null || true
 
           # Executables
-          for exe in fwui-demo fwui-ssg fwui-embed fwui-bench fwui-bench-mem; do
+          for exe in fwui-demo fwui-ssg fwui-embed fwui-bench fwui-bench-mem fwui-pdf; do
             cp "build/${exe}" "${DIR}/bin/" 2>/dev/null || true
           done
 
@@ -81,7 +82,7 @@ jobs:
           Copy-Item "build/Release/fwui.lib" "$DIR/lib/" -ErrorAction SilentlyContinue
 
           # Executables
-          foreach ($exe in @("fwui-demo", "fwui-ssg", "fwui-embed", "fwui-bench", "fwui-bench-mem")) {
+          foreach ($exe in @("fwui-demo", "fwui-ssg", "fwui-embed", "fwui-bench", "fwui-bench-mem", "fwui-pdf")) {
             Copy-Item "build/Release/${exe}.exe" "$DIR/bin/" -ErrorAction SilentlyContinue
           }
 
@@ -114,15 +115,23 @@ jobs:
         with:
           ruby-version: '3.4'
 
-      - name: Build gem
+      - name: Build fwui gem
         run: gem build fwui.gemspec
 
-      - name: Upload gem to release
+      - name: Build fwui-native gem
+        working-directory: fwui-native
+        run: gem build fwui-native.gemspec
+
+      - name: Upload gems to release
         uses: softprops/action-gh-release@v2
         with:
-          files: "*.gem"
+          files: |
+            *.gem
+            fwui-native/*.gem
 
       - name: Publish to RubyGems
         env:
           GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
-        run: gem push fwui-*.gem
+        run: |
+          gem push fwui-*.gem
+          gem push fwui-native/fwui-native-*.gem

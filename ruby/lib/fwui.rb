@@ -478,6 +478,7 @@ module FWUI
 
   def br() = node('br')
   def hr() = node('hr')
+  def page_break() = node('__page_break__')
   def separator() = hr().set_style('border', '1px solid #ccc')
 
   # --- Document structure ---

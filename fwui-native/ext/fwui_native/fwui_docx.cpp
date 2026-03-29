@@ -465,6 +465,63 @@ static PageConfig parse_page_config(VALUE opts) {
     return pc;
 }
 
+/* ── Document-level configuration ──────────────────────────────── */
+
+struct DocConfig {
+    std::string default_font;        /* e.g. "Times New Roman" */
+    std::string default_font_size;   /* half-points: "28" = 14pt */
+    int line_spacing_twips = 0;      /* 360 = 1.5× (mult × 240) */
+    int first_line_indent = 0;       /* twips: ~709 = 1.25cm */
+    std::string header_text;
+    std::string footer_text;
+    std::string first_page_footer;
+    bool page_numbers = false;
+    std::string page_number_align;   /* "center" (default) or "right" */
+};
+
+static DocConfig parse_doc_config(VALUE opts) {
+    DocConfig dc;
+    if (NIL_P(opts) || !RB_TYPE_P(opts, T_HASH)) return dc;
+
+    VALUE v;
+    v = rb_hash_aref(opts, rb_str_new_cstr("default_font"));
+    if (RB_TYPE_P(v, T_STRING)) dc.default_font = rb_str_to_std(v);
+
+    v = rb_hash_aref(opts, rb_str_new_cstr("default_font_size"));
+    if (RB_TYPE_P(v, T_STRING)) {
+        int hp = css_to_half_pt(rb_str_to_std(v));
+        if (hp > 0) dc.default_font_size = std::to_string(hp);
+    }
+
+    v = rb_hash_aref(opts, rb_str_new_cstr("line_spacing"));
+    if (RB_TYPE_P(v, T_STRING)) {
+        double mult = 0;
+        try { mult = std::stod(rb_str_to_std(v)); } catch (...) {}
+        if (mult > 0) dc.line_spacing_twips = static_cast<int>(mult * 240);
+    }
+
+    v = rb_hash_aref(opts, rb_str_new_cstr("first_line_indent"));
+    if (RB_TYPE_P(v, T_STRING)) dc.first_line_indent = css_to_twips(rb_str_to_std(v));
+
+    v = rb_hash_aref(opts, rb_str_new_cstr("header"));
+    if (RB_TYPE_P(v, T_STRING)) dc.header_text = rb_str_to_std(v);
+
+    v = rb_hash_aref(opts, rb_str_new_cstr("footer"));
+    if (RB_TYPE_P(v, T_STRING)) dc.footer_text = rb_str_to_std(v);
+
+    v = rb_hash_aref(opts, rb_str_new_cstr("first_page_footer"));
+    if (RB_TYPE_P(v, T_STRING)) dc.first_page_footer = rb_str_to_std(v);
+
+    v = rb_hash_aref(opts, rb_str_new_cstr("page_numbers"));
+    if (v == Qtrue) dc.page_numbers = true;
+
+    v = rb_hash_aref(opts, rb_str_new_cstr("page_number_align"));
+    if (RB_TYPE_P(v, T_STRING)) dc.page_number_align = rb_str_to_std(v);
+    if (dc.page_number_align.empty()) dc.page_number_align = "center";
+
+    return dc;
+}
+
 /* ── Tag classification ────────────────────────────────────────── */
 
 static bool is_heading(const std::string &tag) {
@@ -522,9 +579,12 @@ struct ParaProps {
     std::string spacing_before;  /* twips */
     std::string spacing_after;   /* twips */
     std::string line_spacing;    /* twips (line height) */
+    std::string line_spacing_rule; /* "auto" for proportional spacing */
     std::string indent_left;     /* twips */
     std::string indent_right;    /* twips */
+    std::string indent_first_line; /* twips */
     int heading_level = 0;       /* 1-6 or 0 */
+    bool page_break_before = false;
     BorderInfo border;           /* uniform border from CSS `border` */
 };
 
@@ -592,6 +652,7 @@ class DocxRenderer {
     bool in_paragraph_ = false;
 
     PageConfig page_config_;
+    DocConfig doc_config_;
 
     std::string next_rel_id() {
         return "rId" + std::to_string(rel_id_++);
@@ -601,6 +662,7 @@ public:
     std::string render(VALUE root, VALUE opts = Qnil) {
         rel_id_ = 10; /* reserve low IDs for standard rels */
         page_config_ = parse_page_config(opts);
+        doc_config_ = parse_doc_config(opts);
         walk(root, RunProps{}, ParaProps{});
 
         ZipWriter zip;
@@ -612,6 +674,11 @@ public:
 
         if (!num_defs_.empty())
             zip.add("word/numbering.xml", numbering_xml());
+
+        /* Header/footer parts */
+        if (has_header()) zip.add("word/header1.xml", header1_xml());
+        if (has_footer()) zip.add("word/footer1.xml", footer1_xml());
+        if (has_first_page_footer()) zip.add("word/footer2.xml", footer2_xml());
 
         /* Embedded images */
         for (size_t i = 0; i < images_.size(); i++)
@@ -657,8 +724,8 @@ private:
         bool has_props = pp.heading_level > 0 || !pp.alignment.empty() ||
                          !pp.spacing_before.empty() || !pp.spacing_after.empty() ||
                          !pp.line_spacing.empty() || !pp.indent_left.empty() ||
-                         !pp.indent_right.empty() || list_num_id > 0 ||
-                         pp.border.size_eighths > 0;
+                         !pp.indent_right.empty() || !pp.indent_first_line.empty() ||
+                         list_num_id > 0 || pp.border.size_eighths > 0;
         if (!has_props) return;
 
         w.open("w:pPr");
@@ -687,6 +754,7 @@ private:
             std::string jc = pp.alignment;
             if (jc == "left") jc = "start";
             else if (jc == "right") jc = "end";
+            else if (jc == "justify") jc = "both";
             w.open_attr("w:jc").attr("w:val", jc).self_close();
         }
         if (!pp.spacing_before.empty() || !pp.spacing_after.empty() || !pp.line_spacing.empty()) {
@@ -694,12 +762,14 @@ private:
             if (!pp.spacing_before.empty()) w.attr("w:before", pp.spacing_before);
             if (!pp.spacing_after.empty())  w.attr("w:after", pp.spacing_after);
             if (!pp.line_spacing.empty())   w.attr("w:line", pp.line_spacing);
+            if (!pp.line_spacing_rule.empty()) w.attr("w:lineRule", pp.line_spacing_rule);
             w.self_close();
         }
-        if (!pp.indent_left.empty() || !pp.indent_right.empty()) {
+        if (!pp.indent_left.empty() || !pp.indent_right.empty() || !pp.indent_first_line.empty()) {
             w.open_attr("w:ind");
             if (!pp.indent_left.empty())  w.attr("w:left", pp.indent_left);
             if (!pp.indent_right.empty()) w.attr("w:right", pp.indent_right);
+            if (!pp.indent_first_line.empty()) w.attr("w:firstLine", pp.indent_first_line);
             w.self_close();
         }
         w.close("w:pPr");
@@ -1005,6 +1075,17 @@ private:
         std::string lh = get_style(styles, "line-height");
         if (!lh.empty()) pp.line_spacing = std::to_string(css_to_twips(lh));
 
+        /* First-line indent */
+        std::string ti = get_style(styles, "text-indent");
+        if (!ti.empty()) {
+            int tw = css_to_twips(ti);
+            if (tw > 0) pp.indent_first_line = std::to_string(tw);
+        }
+
+        /* Page break before */
+        std::string pbb = get_style(styles, "page-break-before");
+        if (pbb == "always") pp.page_break_before = true;
+
         /* Border */
         std::string b = get_style(styles, "border");
         if (!b.empty()) pp.border = parse_border(b);
@@ -1037,6 +1118,13 @@ private:
         /* Merge run props from this element */
         RunProps child_rp = compute_run_props(rp, d.styles, tag);
 
+        /* ── Page break ───────────────────────────────────────── */
+        if (tag == "__page_break__") {
+            close_paragraph();
+            body_.raw("<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>");
+            return;
+        }
+
         /* ── br ────────────────────────────────────────────────── */
         if (tag == "br") {
             ensure_paragraph(pp);
@@ -1065,9 +1153,30 @@ private:
         if (is_heading(tag) || tag == "p" || tag == "pre") {
             close_paragraph();
             ParaProps child_pp = make_para_props(d.styles, tag);
+
+            /* Apply doc_config defaults for 'p' paragraphs */
+            if (tag == "p") {
+                if (child_pp.indent_first_line.empty() && doc_config_.first_line_indent > 0)
+                    child_pp.indent_first_line = std::to_string(doc_config_.first_line_indent);
+                if (child_pp.line_spacing.empty() && doc_config_.line_spacing_twips > 0) {
+                    child_pp.line_spacing = std::to_string(doc_config_.line_spacing_twips);
+                    child_pp.line_spacing_rule = "auto";
+                }
+            }
+
+            /* CSS page-break-before: always */
+            if (child_pp.page_break_before)
+                body_.raw("<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>");
+
             body_.open("w:p");
             write_ppr(body_, child_pp);
             in_paragraph_ = true;
+
+            /* Apply doc_config font defaults to run props */
+            if (child_rp.font_family.empty() && !doc_config_.default_font.empty())
+                child_rp.font_family = doc_config_.default_font;
+            if (child_rp.font_size.empty() && !doc_config_.default_font_size.empty())
+                child_rp.font_size = doc_config_.default_font_size;
 
             /* Emit text content */
             if (RTEST(d.text))
@@ -1254,6 +1363,91 @@ private:
         }
     }
 
+    /* ── Header/Footer helpers ───────────────────────────────── */
+
+    bool has_header() { return !doc_config_.header_text.empty(); }
+    bool has_footer() { return !doc_config_.footer_text.empty() || doc_config_.page_numbers; }
+    bool has_first_page_footer() { return !doc_config_.first_page_footer.empty(); }
+
+    std::string header1_xml() {
+        XmlWriter w;
+        w.decl();
+        w.open_attr("w:hdr")
+         .attr("xmlns:w", "http://schemas.openxmlformats.org/wordprocessingml/2006/main")
+         .end_open();
+        w.open("w:p");
+        w.open("w:pPr");
+        w.open_attr("w:jc").attr("w:val", "center").self_close();
+        w.close("w:pPr");
+        w.open("w:r");
+        w.open_attr("w:t").attr("xml:space", "preserve").end_open();
+        w.text(doc_config_.header_text);
+        w.close("w:t");
+        w.close("w:r");
+        w.close("w:p");
+        w.close("w:hdr");
+        return w.str();
+    }
+
+    std::string footer1_xml() {
+        XmlWriter w;
+        w.decl();
+        w.open_attr("w:ftr")
+         .attr("xmlns:w", "http://schemas.openxmlformats.org/wordprocessingml/2006/main")
+         .end_open();
+        w.open("w:p");
+        w.open("w:pPr");
+        std::string align = doc_config_.page_number_align;
+        if (align == "right") align = "end";
+        w.open_attr("w:jc").attr("w:val", align).self_close();
+        w.close("w:pPr");
+        if (!doc_config_.footer_text.empty()) {
+            w.open("w:r");
+            w.open_attr("w:t").attr("xml:space", "preserve").end_open();
+            w.text(doc_config_.footer_text);
+            w.close("w:t");
+            w.close("w:r");
+        }
+        if (doc_config_.page_numbers) {
+            if (!doc_config_.footer_text.empty()) {
+                /* separator space */
+                w.open("w:r");
+                w.open_attr("w:t").attr("xml:space", "preserve").end_open();
+                w.text(" ");
+                w.close("w:t");
+                w.close("w:r");
+            }
+            w.raw("<w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>");
+            w.raw("<w:r><w:instrText xml:space=\"preserve\"> PAGE \\* MERGEFORMAT </w:instrText></w:r>");
+            w.raw("<w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>");
+            w.raw("<w:r><w:t>1</w:t></w:r>");
+            w.raw("<w:r><w:fldChar w:fldCharType=\"end\"/></w:r>");
+        }
+        w.close("w:p");
+        w.close("w:ftr");
+        return w.str();
+    }
+
+    std::string footer2_xml() {
+        XmlWriter w;
+        w.decl();
+        w.open_attr("w:ftr")
+         .attr("xmlns:w", "http://schemas.openxmlformats.org/wordprocessingml/2006/main")
+         .end_open();
+        w.open("w:p");
+        w.open("w:pPr");
+        w.open_attr("w:jc").attr("w:val", "center").self_close();
+        w.close("w:pPr");
+        w.open("w:r");
+        w.open_attr("w:t").attr("xml:space", "preserve").end_open();
+        w.text(doc_config_.first_page_footer);
+        w.close("w:t");
+        w.close("w:r");
+        w.close("w:p");
+        w.close("w:ftr");
+        return w.str();
+    }
+
     /* ── OOXML boilerplate files ───────────────────────────────── */
 
     std::string content_types() {
@@ -1288,6 +1482,21 @@ private:
              .attr("ContentType", "application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml")
              .self_close();
         }
+        if (has_header()) {
+            w.open_attr("Override").attr("PartName", "/word/header1.xml")
+             .attr("ContentType", "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml")
+             .self_close();
+        }
+        if (has_footer()) {
+            w.open_attr("Override").attr("PartName", "/word/footer1.xml")
+             .attr("ContentType", "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml")
+             .self_close();
+        }
+        if (has_first_page_footer()) {
+            w.open_attr("Override").attr("PartName", "/word/footer2.xml")
+             .attr("ContentType", "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml")
+             .self_close();
+        }
         w.close("Types");
         return w.str();
     }
@@ -1319,6 +1528,21 @@ private:
              .attr("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering")
              .attr("Target", "numbering.xml").self_close();
         }
+        if (has_header()) {
+            w.open_attr("Relationship").attr("Id", "rId3")
+             .attr("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header")
+             .attr("Target", "header1.xml").self_close();
+        }
+        if (has_footer()) {
+            w.open_attr("Relationship").attr("Id", "rId4")
+             .attr("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer")
+             .attr("Target", "footer1.xml").self_close();
+        }
+        if (has_first_page_footer()) {
+            w.open_attr("Relationship").attr("Id", "rId5")
+             .attr("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer")
+             .attr("Target", "footer2.xml").self_close();
+        }
         for (auto &h : hyperlinks_) {
             w.open_attr("Relationship").attr("Id", h.first)
              .attr("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink")
@@ -1347,8 +1571,14 @@ private:
         w.open("w:body");
         w.raw(body_.str());
 
-        /* Section properties — page size and margins */
+        /* Section properties — page size, margins, headers/footers */
         w.open("w:sectPr");
+        if (has_header())
+            w.open_attr("w:headerReference").attr("w:type", "default").attr("r:id", "rId3").self_close();
+        if (has_footer())
+            w.open_attr("w:footerReference").attr("w:type", "default").attr("r:id", "rId4").self_close();
+        if (has_first_page_footer())
+            w.open_attr("w:footerReference").attr("w:type", "first").attr("r:id", "rId5").self_close();
         w.open_attr("w:pgSz")
          .attr("w:w", page_config_.width_twips)
          .attr("w:h", page_config_.height_twips)
@@ -1359,6 +1589,8 @@ private:
          .attr("w:left", page_config_.margin_left)
          .attr("w:right", page_config_.margin_right)
          .self_close();
+        if (has_first_page_footer())
+            w.raw("<w:titlePg/>");
         w.close("w:sectPr");
 
         w.close("w:body");
@@ -1374,11 +1606,13 @@ private:
          .end_open();
 
         /* Default style */
+        std::string def_font = doc_config_.default_font.empty() ? "Calibri" : doc_config_.default_font;
+        int def_sz = doc_config_.default_font_size.empty() ? 22 : std::stoi(doc_config_.default_font_size);
         w.open_attr("w:docDefaults").end_open();
         w.open_attr("w:rPrDefault").end_open();
         w.open("w:rPr");
-        w.open_attr("w:rFonts").attr("w:ascii", "Calibri").attr("w:hAnsi", "Calibri").self_close();
-        w.open_attr("w:sz").attr("w:val", 22).self_close();
+        w.open_attr("w:rFonts").attr("w:ascii", def_font).attr("w:hAnsi", def_font).self_close();
+        w.open_attr("w:sz").attr("w:val", def_sz).self_close();
         w.close("w:rPr");
         w.close("w:rPrDefault");
         w.close("w:docDefaults");
@@ -1458,6 +1692,8 @@ class OdtRenderer {
         std::string alignment;
         std::string margin_top, margin_bottom, margin_left, margin_right;
         std::string line_height;
+        std::string text_indent;
+        bool page_break_before = false;
         int heading_level = 0;
     };
     std::vector<AutoStyle> auto_styles_;
@@ -1472,6 +1708,7 @@ class OdtRenderer {
     bool in_paragraph_ = false;
     std::string current_para_style_;
     PageConfig page_config_;
+    DocConfig doc_config_;
 
     std::string make_style_name(const char *prefix) {
         return std::string(prefix) + std::to_string(style_id_++);
@@ -1480,6 +1717,7 @@ class OdtRenderer {
 public:
     std::string render(VALUE root, VALUE opts = Qnil) {
         page_config_ = parse_page_config(opts);
+        doc_config_ = parse_doc_config(opts);
         walk(root, RunProps{});
 
         ZipWriter zip;
@@ -1616,10 +1854,40 @@ private:
         std::string pr_s = get_style(styles, "padding-right");
         std::string p = get_style(styles, "padding");
         std::string lh = get_style(styles, "line-height");
+        std::string ti = get_style(styles, "text-indent");
+        std::string pbb = get_style(styles, "page-break-before");
+
+        /* Apply doc_config defaults for 'p' */
+        std::string default_ti;
+        std::string default_lh;
+        if (tag == "p") {
+            if (ti.empty() && doc_config_.first_line_indent > 0) {
+                double cm = doc_config_.first_line_indent / 1440.0 * 2.54;
+                std::ostringstream oss;
+                oss << cm << "cm";
+                default_ti = oss.str();
+            }
+            if (lh.empty() && doc_config_.line_spacing_twips > 0) {
+                /* Convert twips (mult*240) to percentage: 360 → 150% */
+                int pct = static_cast<int>(doc_config_.line_spacing_twips * 100.0 / 240.0);
+                default_lh = std::to_string(pct) + "%";
+            }
+        }
+
+        bool has_explicit_ti = !ti.empty();
+        std::string ti_cm;
+        if (!ti.empty()) {
+            int tw = css_to_twips(ti);
+            double cm = tw / 1440.0 * 2.54;
+            std::ostringstream oss;
+            oss << cm << "cm";
+            ti_cm = oss.str();
+        }
 
         bool has = !align.empty() || !mt.empty() || !mb.empty() || !ml.empty() ||
                    !mr.empty() || !m.empty() || !pl.empty() || !pr_s.empty() ||
-                   !p.empty() || !lh.empty();
+                   !p.empty() || !lh.empty() || has_explicit_ti || !default_ti.empty() ||
+                   !default_lh.empty() || pbb == "always";
         if (!has) return {};
 
         std::string sn = make_style_name("P");
@@ -1642,7 +1910,9 @@ private:
         as.margin_bottom = twips_to_cm(mb.empty() ? m : mb);
         as.margin_left = twips_to_cm(!ml.empty() ? ml : (!pl.empty() ? pl : (!p.empty() ? p : m)));
         as.margin_right = twips_to_cm(!mr.empty() ? mr : (!pr_s.empty() ? pr_s : (!p.empty() ? p : m)));
-        as.line_height = lh;
+        as.line_height = !lh.empty() ? lh : default_lh;
+        as.text_indent = has_explicit_ti ? ti_cm : default_ti;
+        as.page_break_before = (pbb == "always");
 
         auto_styles_.push_back(std::move(as));
         return sn;
@@ -1669,6 +1939,21 @@ private:
         if (is_skip_tag(tag)) return;
 
         RunProps child_rp = compute_run_props(rp, d.styles, tag);
+
+        /* ── Page break ──────────────────────────────────────── */
+        if (tag == "__page_break__") {
+            close_paragraph();
+            /* Create a paragraph style with page break */
+            std::string sn = make_style_name("P");
+            AutoStyle as;
+            as.name = sn;
+            as.family = "paragraph";
+            as.page_break_before = true;
+            auto_styles_.push_back(std::move(as));
+            body_.open_attr("text:p").attr("text:style-name", sn).end_open();
+            body_.close("text:p");
+            return;
+        }
 
         /* ── br ───────────────────────────────────────────────── */
         if (tag == "br") {
@@ -1711,6 +1996,12 @@ private:
             close_paragraph();
             std::string sn = make_para_style(d.styles, tag);
             open_paragraph(sn);
+
+            /* Apply doc_config font defaults */
+            if (child_rp.font_family.empty() && !doc_config_.default_font.empty())
+                child_rp.font_family = doc_config_.default_font;
+            if (child_rp.font_size.empty() && !doc_config_.default_font_size.empty())
+                child_rp.font_size = doc_config_.default_font_size;
 
             if (RTEST(d.text))
                 emit_span(rb_str_to_std(d.text), child_rp);
@@ -2051,7 +2342,8 @@ private:
             if (as.family == "paragraph") {
                 bool has_pp = !as.alignment.empty() || !as.margin_top.empty() ||
                               !as.margin_bottom.empty() || !as.margin_left.empty() ||
-                              !as.margin_right.empty() || !as.line_height.empty();
+                              !as.margin_right.empty() || !as.line_height.empty() ||
+                              !as.text_indent.empty() || as.page_break_before;
                 if (has_pp) {
                     w.open_attr("style:paragraph-properties");
                     if (!as.alignment.empty()) w.attr("fo:text-align", as.alignment);
@@ -2060,6 +2352,8 @@ private:
                     if (!as.margin_left.empty()) w.attr("fo:margin-left", as.margin_left);
                     if (!as.margin_right.empty()) w.attr("fo:margin-right", as.margin_right);
                     if (!as.line_height.empty()) w.attr("fo:line-height", as.line_height);
+                    if (!as.text_indent.empty()) w.attr("fo:text-indent", as.text_indent);
+                    if (as.page_break_before) w.attr("fo:break-before", "page");
                     w.self_close();
                 }
             }
@@ -2104,11 +2398,17 @@ private:
         w.open("office:styles");
 
         /* Default paragraph style */
+        std::string odt_def_font = doc_config_.default_font.empty() ? "Calibri" : doc_config_.default_font;
+        std::string odt_def_size = "11pt";
+        if (!doc_config_.default_font_size.empty()) {
+            int hp = std::stoi(doc_config_.default_font_size);
+            odt_def_size = std::to_string(hp / 2) + "pt";
+        }
         w.open_attr("style:default-style")
          .attr("style:family", "paragraph").end_open();
         w.open_attr("style:text-properties")
-         .attr("style:font-name", "Calibri")
-         .attr("fo:font-size", "11pt").self_close();
+         .attr("style:font-name", odt_def_font)
+         .attr("fo:font-size", odt_def_size).self_close();
         w.close("style:default-style");
 
         /* Heading styles */
@@ -2164,10 +2464,47 @@ private:
 
         /* Master pages */
         w.open("office:master-styles");
-        w.open_attr("style:master-page")
-         .attr("style:name", "Default")
-         .attr("style:page-layout-name", "pm1")
-         .self_close();
+        bool has_hf = !doc_config_.header_text.empty() || !doc_config_.footer_text.empty() ||
+                       doc_config_.page_numbers || !doc_config_.first_page_footer.empty();
+        if (has_hf) {
+            w.open_attr("style:master-page")
+             .attr("style:name", "Default")
+             .attr("style:page-layout-name", "pm1")
+             .end_open();
+            if (!doc_config_.header_text.empty()) {
+                w.open("style:header");
+                w.open("text:p");
+                w.text(doc_config_.header_text);
+                w.close("text:p");
+                w.close("style:header");
+            }
+            if (!doc_config_.footer_text.empty() || doc_config_.page_numbers) {
+                w.open("style:footer");
+                w.open("text:p");
+                if (!doc_config_.footer_text.empty())
+                    w.text(doc_config_.footer_text);
+                if (doc_config_.page_numbers) {
+                    if (!doc_config_.footer_text.empty())
+                        w.text(" ");
+                    w.raw("<text:page-number text:select-page=\"current\">1</text:page-number>");
+                }
+                w.close("text:p");
+                w.close("style:footer");
+            }
+            if (!doc_config_.first_page_footer.empty()) {
+                w.open("style:footer-first");
+                w.open("text:p");
+                w.text(doc_config_.first_page_footer);
+                w.close("text:p");
+                w.close("style:footer-first");
+            }
+            w.close("style:master-page");
+        } else {
+            w.open_attr("style:master-page")
+             .attr("style:name", "Default")
+             .attr("style:page-layout-name", "pm1")
+             .self_close();
+        }
         w.close("office:master-styles");
 
         w.close("office:document-styles");

@@ -130,6 +130,23 @@ module DocxTests
     test_odt_colspan
     test_odt_page_config
 
+    # v1.3 — page breaks, headers/footers, doc config, GOST
+    test_docx_justify_both
+    test_docx_page_break
+    test_docx_css_page_break_before
+    test_docx_default_font
+    test_docx_default_font_size
+    test_docx_line_spacing
+    test_docx_first_line_indent
+    test_docx_header_footer_zip
+    test_docx_page_numbers
+    test_docx_first_page_footer
+    test_docx_gost_preset
+    test_docx_page_break_factory
+    test_odt_page_break
+    test_odt_default_font
+    test_odt_footer_page_number
+
     summary
   end
 
@@ -749,6 +766,162 @@ module DocxTests
     assert("has page-layout") { styles&.include?('style:page-layout') }
     assert("has page-layout-properties") { styles&.include?('style:page-layout-properties') }
     assert("has fo:page-width") { styles&.include?('fo:page-width') }
+  end
+  # ── v1.3: Page breaks, headers/footers, doc config, GOST ──────
+
+  def self.test_docx_justify_both
+    puts "  DOCX: justify → both..."
+    xml = doc_xml(FWUI.p("justified").set_style("text-align", "justify").to_docx)
+    assert("justify maps to both") { xml.include?('w:jc') && xml.include?('"both"') }
+  end
+
+  def self.test_docx_page_break
+    puts "  DOCX: __page_break__..."
+    tree = FWUI.div([FWUI.p("Before"), FWUI.node("__page_break__"), FWUI.p("After")])
+    xml = doc_xml(tree.to_docx)
+    assert("has page break") { xml.include?('w:br w:type="page"') }
+    assert("has both paragraphs") { xml.include?("Before") && xml.include?("After") }
+  end
+
+  def self.test_docx_css_page_break_before
+    puts "  DOCX: CSS page-break-before..."
+    tree = FWUI.div([
+      FWUI.p("Page 1"),
+      FWUI.p("Page 2").set_style("page-break-before", "always")
+    ])
+    xml = doc_xml(tree.to_docx)
+    assert("CSS page-break-before emits break") { xml.include?('w:br w:type="page"') }
+  end
+
+  def self.test_docx_default_font
+    puts "  DOCX: default_font..."
+    docx = FWUI.p("Hello").to_docx({"default_font" => "Times New Roman"})
+    xml = doc_xml(docx)
+    assert("has Times New Roman in runs") { xml.include?("Times New Roman") }
+    # Check styles.xml docDefaults
+    styles = zip_entry(docx, 'word/styles.xml')&.force_encoding('UTF-8')
+    assert("docDefaults has Times New Roman") { styles&.include?("Times New Roman") }
+  end
+
+  def self.test_docx_default_font_size
+    puts "  DOCX: default_font_size..."
+    docx = FWUI.p("Hello").to_docx({"default_font_size" => "14pt"})
+    xml = doc_xml(docx)
+    # 14pt = 28 half-points
+    assert("run has w:sz 28") { xml.include?('w:sz') && xml.include?('"28"') }
+  end
+
+  def self.test_docx_line_spacing
+    puts "  DOCX: line_spacing..."
+    xml = doc_xml(FWUI.p("Spaced").to_docx({"line_spacing" => "1.5"}))
+    # 1.5 × 240 = 360
+    assert("has w:spacing w:line 360") { xml.include?('w:spacing') && xml.include?('"360"') }
+    assert("has lineRule auto") { xml.include?('w:lineRule="auto"') }
+  end
+
+  def self.test_docx_first_line_indent
+    puts "  DOCX: first_line_indent..."
+    xml = doc_xml(FWUI.p("Indented").to_docx({"first_line_indent" => "1.25cm"}))
+    # 1.25cm ≈ 709 twips
+    assert("has w:firstLine") { xml.include?('w:firstLine') }
+    assert("indent value ~709") {
+      xml =~ /w:firstLine="(\d+)"/ && $1.to_i.between?(700, 720)
+    }
+  end
+
+  def self.test_docx_header_footer_zip
+    puts "  DOCX: header/footer in ZIP..."
+    docx = FWUI.p("Body").to_docx({
+      "header" => "Report Title",
+      "footer" => "Confidential"
+    })
+    hdr = zip_entry(docx, 'word/header1.xml')&.force_encoding('UTF-8')
+    ftr = zip_entry(docx, 'word/footer1.xml')&.force_encoding('UTF-8')
+    assert("header1.xml exists") { hdr }
+    assert("header has text") { hdr&.include?("Report Title") }
+    assert("footer1.xml exists") { ftr }
+    assert("footer has text") { ftr&.include?("Confidential") }
+
+    xml = doc_xml(docx)
+    assert("sectPr has headerReference") { xml.include?('w:headerReference') }
+    assert("sectPr has footerReference") { xml.include?('w:footerReference') }
+  end
+
+  def self.test_docx_page_numbers
+    puts "  DOCX: page_numbers field code..."
+    docx = FWUI.p("Body").to_docx({"page_numbers" => true})
+    ftr = zip_entry(docx, 'word/footer1.xml')&.force_encoding('UTF-8')
+    assert("footer exists") { ftr }
+    assert("has PAGE field") { ftr&.include?('PAGE') && ftr&.include?('MERGEFORMAT') }
+    assert("has fldChar") { ftr&.include?('w:fldChar') }
+  end
+
+  def self.test_docx_first_page_footer
+    puts "  DOCX: first_page_footer + titlePg..."
+    docx = FWUI.p("Body").to_docx({
+      "footer" => "Page footer",
+      "first_page_footer" => "Sevastopol, 2026"
+    })
+    ftr2 = zip_entry(docx, 'word/footer2.xml')&.force_encoding('UTF-8')
+    assert("footer2.xml exists") { ftr2 }
+    assert("first-page footer has text") { ftr2&.include?("Sevastopol, 2026") }
+
+    xml = doc_xml(docx)
+    assert("has titlePg") { xml.include?('w:titlePg') }
+    assert("has first footer ref") { xml.include?('w:type="first"') }
+  end
+
+  def self.test_docx_gost_preset
+    puts "  DOCX: GOST preset via Doc..."
+    tree = FWUI.p("GOST text")
+    docx = FWUI::Doc.to_docx(tree, preset: :gost)
+    xml = doc_xml(docx)
+    # A4 width
+    assert("A4 page") { xml.include?('"11906"') }
+    # Times New Roman in runs
+    assert("Times New Roman") { xml.include?("Times New Roman") }
+    # 14pt = 28 half-points
+    assert("14pt font size") { xml.include?('"28"') }
+    # First-line indent
+    assert("first-line indent") { xml.include?('w:firstLine') }
+    # Line spacing 1.5 = 360
+    assert("line spacing 360") { xml.include?('"360"') }
+    # Margins: left=30mm≈1701tw, right=15mm≈850tw
+    assert("left margin ~1701") {
+      xml =~ /w:left="(\d+)"/ && $1.to_i.between?(1695, 1710)
+    }
+  end
+
+  def self.test_docx_page_break_factory
+    puts "  DOCX: page_break() factory..."
+    tree = FWUI.div([FWUI.p("A"), FWUI.page_break, FWUI.p("B")])
+    xml = doc_xml(tree.to_docx)
+    assert("factory produces page break") { xml.include?('w:br w:type="page"') }
+  end
+
+  def self.test_odt_page_break
+    puts "  ODT: page break..."
+    tree = FWUI.div([FWUI.p("Before"), FWUI.node("__page_break__"), FWUI.p("After")])
+    xml = odt_content(tree.to_odt)
+    assert("has break-before page") { xml.include?('fo:break-before="page"') }
+  end
+
+  def self.test_odt_default_font
+    puts "  ODT: default font..."
+    odt = FWUI.p("Hello").to_odt({"default_font" => "Times New Roman"})
+    styles = zip_entry(odt, 'styles.xml')&.force_encoding('UTF-8')
+    assert("styles has Times New Roman") { styles&.include?("Times New Roman") }
+    xml = odt_content(odt)
+    assert("content has Times New Roman") { xml.include?("Times New Roman") }
+  end
+
+  def self.test_odt_footer_page_number
+    puts "  ODT: footer with page-number..."
+    odt = FWUI.p("Body").to_odt({"footer" => "Page ", "page_numbers" => true})
+    styles = zip_entry(odt, 'styles.xml')&.force_encoding('UTF-8')
+    assert("has style:footer") { styles&.include?("style:footer") }
+    assert("has text:page-number") { styles&.include?("text:page-number") }
+    assert("has footer text") { styles&.include?("Page ") }
   end
 end
 

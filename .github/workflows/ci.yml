@@ -9,6 +9,7 @@ on:
 jobs:
   cpp:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -62,10 +63,12 @@ jobs:
 
   ruby-native:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
           - os: macos-latest
+          - os: windows-latest
 
     runs-on: ${{ matrix.os }}
 
@@ -85,7 +88,8 @@ jobs:
           path: fwui-native/ext/fwui_native/vendor
           key: vendor-headers-json3.11.3-inja3.4.0
 
-      - name: Download vendored headers
+      - name: Download vendored headers (Unix)
+        if: runner.os != 'Windows'
         working-directory: fwui-native/ext/fwui_native
         run: |
           mkdir -p vendor/nlohmann
@@ -93,6 +97,19 @@ jobs:
             https://github.com/nlohmann/json/releases/download/v3.11.3/json.hpp
           [ -f vendor/inja.hpp ] || curl -sL -o vendor/inja.hpp \
             https://raw.githubusercontent.com/pantor/inja/v3.4.0/single_include/inja/inja.hpp
+
+      - name: Download vendored headers (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: fwui-native/ext/fwui_native
+        run: |
+          New-Item -ItemType Directory -Force -Path vendor/nlohmann | Out-Null
+          if (-not (Test-Path vendor/nlohmann/json.hpp)) {
+            Invoke-WebRequest -Uri "https://github.com/nlohmann/json/releases/download/v3.11.3/json.hpp" -OutFile vendor/nlohmann/json.hpp
+          }
+          if (-not (Test-Path vendor/inja.hpp)) {
+            Invoke-WebRequest -Uri "https://raw.githubusercontent.com/pantor/inja/v3.4.0/single_include/inja/inja.hpp" -OutFile vendor/inja.hpp
+          }
 
       - name: Build C extension
         working-directory: fwui-native
