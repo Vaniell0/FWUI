@@ -1,6 +1,6 @@
 # Getting Started
 
-[[data/projects/FWUI/docs/index|← Главная]]
+[← Главная](index.md)
 
 ## Установка
 
@@ -100,7 +100,7 @@ page = layout("My Site",
 </html>
 ```
 
-Для полного контроля используй `document()` напрямую — см. [[ruby-dsl]].
+Для полного контроля используй `document()` напрямую — см. [ruby-dsl](ruby-dsl.md).
 
 ## CLI
 
@@ -123,7 +123,7 @@ ruby examples/ruby/server.rb --dev      # hot-reload
 - `.css` → CSS-only reload (без перезагрузки страницы)
 - WebSocket: `ws://localhost:10101/__fwui_ws`
 
-Подробнее: [[server]], [[hot-reload]]
+Подробнее: [server](server.md), [hot-reload](hot-reload.md)
 
 ## fwui-native (опционально)
 
@@ -171,7 +171,7 @@ FWUI::Native.render_template(
 
 Ruby DSL работает полностью без fwui-native.
 
-Подробнее: [[fwui-native]], [[performance]]
+Подробнее: [fwui-native](fwui-native.md), [performance](performance.md)
 
 ## Структура проекта
 
@@ -197,7 +197,7 @@ FWUI/
 
 ## Следующие шаги
 
-- [[ruby-dsl]] — все элементы и методы
-- [[pipe-operator]] — оператор `|` для декорирования
-- [[components]] — система компонентов и страниц
-- [[fwui-native]] — C extension, Inja, baked templates, PackedBuilder
+- [ruby-dsl](ruby-dsl.md) — все элементы и методы
+- [pipe-operator](pipe-operator.md) — оператор `|` для декорирования
+- [components](components.md) — система компонентов и страниц
+- [fwui-native](fwui-native.md) — C extension, Inja, baked templates, PackedBuilder

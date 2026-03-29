@@ -1,6 +1,6 @@
 # PackedBuilder
 
-[[data/projects/FWUI/docs/index|← Главная]] · [[fwui-native]] · [[baked-templates]] · [[performance]]
+[← Главная](index.md) · [fwui-native](fwui-native.md) · [baked-templates](baked-templates.md) · [performance](performance.md)
 
 ## Концепция
 

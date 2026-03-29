@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |s|
   s.name        = 'fwui-native'
-  s.version     = '1.0.0'
+  s.version     = '1.1.0'
   s.summary     = 'Native C extension for FWUI HTML rendering'
   s.description = 'C extension for FWUI: direct ivar access (ROBJECT_IVPTR), ' \
                   'render caching, baked templates, and Inja template engine. ' \

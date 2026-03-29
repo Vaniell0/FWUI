@@ -31,6 +31,7 @@ module FWUI
   end
 
   require_relative 'native/packed_builder'
+  require_relative 'native/component'
 
   # Baked templates: compile Node tree → static chunks + slots.
   # At render time: memcpy chunks + escape(params). No tree traversal.

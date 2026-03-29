@@ -1,6 +1,6 @@
 # fwui-native
 
-[[data/projects/FWUI/docs/index|← Главная]] · [[baked-templates]] · [[packed-builder]] · [[performance]]
+[← Главная](index.md) · [baked-templates](baked-templates.md) · [packed-builder](packed-builder.md) · [performance](performance.md)
 
 C extension для Ruby — подключается одной строкой, `Node#to_html` переключается на C-реализацию.
 
@@ -181,7 +181,7 @@ FWUI::Native.render_baked(:card, title: "Project X", desc: "A cool project")
 </div>
 ```
 
-Подробнее: [[baked-templates]]
+Подробнее: [baked-templates](baked-templates.md)
 
 ## PackedBuilder
 
@@ -203,7 +203,7 @@ FWUI::Native.build {
 </div>
 ```
 
-Подробнее: [[packed-builder]]
+Подробнее: [packed-builder](packed-builder.md)
 
 ## Cache invalidation (Subtree Cache)
 

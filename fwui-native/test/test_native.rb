@@ -74,6 +74,9 @@ module NativeTests
     test_baked
     test_packed_builder
     test_inja
+    test_concurrent_to_html
+    test_concurrent_render_opcodes
+    test_component_api
     test_benchmark
 
     summary
@@ -568,6 +571,64 @@ module NativeTests
         FWUI::Native.render_template_file("page.html", { body: "content" }),
         "<p>content</p>")
     end
+  end
+
+  def self.test_concurrent_to_html
+    puts "  concurrent to_html (10 threads x 100 renders)..."
+    node = FWUI.div([FWUI.h1("Test")])
+    expected = node.to_html
+    errors = []
+
+    threads = 10.times.map do
+      Thread.new do
+        100.times do
+          fresh = FWUI.div([FWUI.h1("Test")])
+          html = fresh.to_html
+          errors << "mismatch: #{html.inspect}" if html != expected
+        end
+      rescue => e
+        errors << e.message
+      end
+    end
+    threads.each(&:join)
+
+    assert("concurrent to_html no errors (got #{errors.size})") { errors.empty? }
+  end
+
+  def self.test_concurrent_render_opcodes
+    puts "  concurrent render_opcodes (10 threads x 100 builds)..."
+    expected = FWUI::Native.build { div { p("Thread test") } }
+    errors = []
+
+    threads = 10.times.map do
+      Thread.new do
+        100.times do
+          html = FWUI::Native.build { div { p("Thread test") } }
+          errors << "mismatch: #{html.inspect}" if html != expected
+        end
+      rescue => e
+        errors << e.message
+      end
+    end
+    threads.each(&:join)
+
+    assert("concurrent render_opcodes no errors (got #{errors.size})") { errors.empty? }
+  end
+
+  def self.test_component_api
+    puts "  UI::Component API..."
+
+    # Bake via block
+    FWUI::UI::Component.bake(:test_comp) do
+      [FWUI.h1(FWUI.slot(:title)), FWUI.p(FWUI.slot(:body))]
+    end
+
+    html = FWUI::UI::Component.render(:test_comp, title: "Hi", body: "There")
+    assert("component render has title") { html.include?("Hi") }
+    assert("component render has body") { html.include?("There") }
+
+    node = FWUI::UI::Component.node(:test_comp, title: "A", body: "B")
+    assert("component node renders") { node.to_html.include?("A") }
   end
 
   def self.test_benchmark

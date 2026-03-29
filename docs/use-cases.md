@@ -1,6 +1,6 @@
 # Use Cases и Roadmap
 
-[[data/projects/FWUI/docs/index|← Главная]] · [[performance]] · [[fwui-native]]
+[← Главная](index.md) · [performance](performance.md) · [fwui-native](fwui-native.md)
 
 ## Текущие use cases
 

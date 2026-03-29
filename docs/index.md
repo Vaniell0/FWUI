@@ -44,28 +44,28 @@ page = layout("My Site",
 
 ### Ruby DSL (Apache 2.0)
 
-- [[getting-started]] — установка, сборка, запуск сервера
-- [[ruby-dsl]] — элементы, контейнеры, chainable методы, документы
-- [[pipe-operator]] — оператор `|` и 35+ фабрик-декораторов
-- [[components]] — Registry, компоненты, страницы, автозагрузка
-- [[server]] — stdlib Socket сервер, HTTP + WebSocket
-- [[websocket]] — RFC 6455 реализация, InteractiveHub, протокол
-- [[hot-reload]] — FileWatcher, live-перезагрузка при разработке
+- [getting-started](getting-started.md) — установка, сборка, запуск сервера
+- [ruby-dsl](ruby-dsl.md) — элементы, контейнеры, chainable методы, документы
+- [pipe-operator](pipe-operator.md) — оператор `|` и 35+ фабрик-декораторов
+- [components](components.md) — Registry, компоненты, страницы, автозагрузка
+- [server](server.md) — stdlib Socket сервер, HTTP + WebSocket
+- [websocket](websocket.md) — RFC 6455 реализация, InteractiveHub, протокол
+- [hot-reload](hot-reload.md) — FileWatcher, live-перезагрузка при разработке
 
 ### fwui-native (BSL 1.1)
 
-- [[fwui-native]] — C extension: рендер, кеш, Inja шаблоны
-- [[baked-templates]] — компиляция шаблонов в статические чанки + слоты
-- [[packed-builder]] — opcode stream: рендер без Node-объектов
-- [[performance]] — бенчмарки, рекомендации по выбору режима
-- [[use-cases]] — применение, аналоги, roadmap
+- [fwui-native](fwui-native.md) — C extension: рендер, кеш, Inja шаблоны
+- [baked-templates](baked-templates.md) — компиляция шаблонов в статические чанки + слоты
+- [packed-builder](packed-builder.md) — opcode stream: рендер без Node-объектов
+- [performance](performance.md) — бенчмарки, рекомендации по выбору режима
+- [use-cases](use-cases.md) — применение, аналоги, roadmap
 
 ### C++ ядро (BSL 1.1)
 
-- [[cpp-api]] — Node, Elements, Decorators, Renderer, Registry, TemplateEngine
-- [[ssg]] — генератор статических сайтов (`fwui-ssg`)
-- [[embedded]] — embedded pages: constexpr HTML в бинарнике (`fwui-embed`)
-- [[build]] — CMake, таргеты, зависимости, CI
+- [cpp-api](cpp-api.md) — Node, Elements, Decorators, Renderer, Registry, TemplateEngine
+- [ssg](ssg.md) — генератор статических сайтов (`fwui-ssg`)
+- [embedded](embedded.md) — embedded pages: constexpr HTML в бинарнике (`fwui-embed`)
+- [build](build.md) — CMake, таргеты, зависимости, CI
 
 
 ## Архитектура

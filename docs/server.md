@@ -1,6 +1,6 @@
 # Сервер
 
-[[data/projects/FWUI/docs/index|← Главная]] · [[websocket]] · [[hot-reload]] · [[components]]
+[← Главная](index.md) · [websocket](websocket.md) · [hot-reload](hot-reload.md) · [components](components.md)
 
 ## Архитектура
 
@@ -50,8 +50,8 @@ WebSocket upgrade: при запросе на `/__fwui_ws` с заголовко
 
 Активируется через `--dev` или `FWUI_DEV=1`:
 
-- [[hot-reload|FileWatcher]] отслеживает `ruby/pages/` и `static/`
-- [[websocket|WebSocket]] endpoint на `/__fwui_ws`
+- [FileWatcher](hot-reload.md) отслеживает `ruby/pages/` и `static/`
+- [WebSocket](websocket.md) endpoint на `/__fwui_ws`
 - JS скрипт hot-reload инжектится перед `</body>`
 - Изменение `.rb` → полная перезагрузка страницы
 - Изменение `.css` → CSS-only reload без перезагрузки

@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  cpp:
     strategy:
       matrix:
         include:
@@ -115,11 +115,14 @@ jobs:
           ruby-version: '3.4'
 
       - name: Build gem
-        run: |
-          cd ruby/lib && ruby -e "require_relative 'fwui/version'; puts FWUI::VERSION"
-          gem build ../../fwui.gemspec
+        run: gem build fwui.gemspec
 
-      - name: Upload gem artifact
+      - name: Upload gem to release
         uses: softprops/action-gh-release@v2
         with:
           files: "*.gem"
+
+      - name: Publish to RubyGems
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+        run: gem push fwui-*.gem

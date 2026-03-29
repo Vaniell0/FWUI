@@ -1,6 +1,6 @@
 # Baked Templates
 
-[[data/projects/FWUI/docs/index|← Главная]] · [[fwui-native]] · [[packed-builder]] · [[performance]]
+[← Главная](index.md) · [fwui-native](fwui-native.md) · [packed-builder](packed-builder.md) · [performance](performance.md)
 
 ## Концепция
 

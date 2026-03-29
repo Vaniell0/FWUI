@@ -1,6 +1,6 @@
 # Pipe-оператор `|`
 
-[[data/projects/FWUI/docs/index|← Главная]] · [[ruby-dsl]] · [[components]]
+[← Главная](index.md) · [ruby-dsl](ruby-dsl.md) · [components](components.md)
 
 ## Концепция
 

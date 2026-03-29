@@ -11,6 +11,8 @@
 
 #include <ruby.h>
 #include <ruby/encoding.h>
+#include <mutex>
+#include <shared_mutex>
 
 #include "vendor/nlohmann/json.hpp"
 #include "vendor/inja.hpp"
@@ -18,6 +20,7 @@
 using json = nlohmann::json;
 
 static std::string g_template_dir;
+static std::shared_mutex dir_mutex;
 static rb_encoding *inja_enc_utf8;
 
 /* ── Ruby Hash → nlohmann::json conversion ────────────────────────── */
@@ -113,9 +116,15 @@ static VALUE inja_render_template_file(VALUE mod, VALUE path, VALUE data_hash) {
     std::string file_path(RSTRING_PTR(path), RSTRING_LEN(path));
     json data = rb_to_json(data_hash);
 
+    std::string dir_copy;
+    {
+        std::shared_lock<std::shared_mutex> lock(dir_mutex);
+        dir_copy = g_template_dir;
+    }
+
     try {
-        if (!g_template_dir.empty()) {
-            inja::Environment env(g_template_dir);
+        if (!dir_copy.empty()) {
+            inja::Environment env(dir_copy);
             std::string result = env.render_file(file_path, data);
             return rb_enc_str_new(result.c_str(),
                                   static_cast<long>(result.size()),
@@ -133,6 +142,7 @@ static VALUE inja_render_template_file(VALUE mod, VALUE path, VALUE data_hash) {
 
 static VALUE inja_set_template_directory(VALUE mod, VALUE dir) {
     Check_Type(dir, T_STRING);
+    std::unique_lock<std::shared_mutex> lock(dir_mutex);
     g_template_dir = std::string(RSTRING_PTR(dir), RSTRING_LEN(dir));
     return Qtrue;
 }

@@ -1,6 +1,6 @@
 # WebSocket
 
-[[data/projects/FWUI/docs/index|← Главная]] · [[server]] · [[hot-reload]]
+[← Главная](index.md) · [server](server.md) · [hot-reload](hot-reload.md)
 
 ## Реализация
 

@@ -18,6 +18,7 @@
 #include <ruby/encoding.h>
 #include <string.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 /* ── Cached IDs ─────────────────────────────────────────────────── */
 
@@ -32,7 +33,7 @@ static rb_encoding *enc_utf8;
 
 static int direct_ok = 0;
 
-/* ── Reusable C buffer ──────────────────────────────────────────── */
+/* ── Reusable C buffer (per-thread for thread safety) ─────────── */
 
 typedef struct {
     char *ptr;
@@ -40,8 +41,8 @@ typedef struct {
     size_t cap;
 } cbuf_t;
 
-static char  *g_buf_ptr = NULL;
-static size_t g_buf_cap = 0;
+static __thread char  *tl_buf_ptr = NULL;
+static __thread size_t tl_buf_cap = 0;
 
 static void cbuf_grow(cbuf_t *b, size_t need) {
     size_t req = b->len + need;
@@ -120,9 +121,6 @@ typedef struct {
     int flushed;
 } elem_state_t;
 
-static elem_state_t g_stack[MAX_DEPTH];
-static int g_depth = 0;
-
 static void flush_open_tag(cbuf_t *b, elem_state_t *e) {
     if (e->flushed) return;
     e->flushed = 1;
@@ -175,33 +173,36 @@ static VALUE native_render_opcodes(VALUE mod, VALUE opcodes_str) {
     const uint8_t *p   = (const uint8_t *)RSTRING_PTR(opcodes_str);
     const uint8_t *end = p + RSTRING_LEN(opcodes_str);
 
+    /* Per-call local stack — each render is independent */
+    elem_state_t stack[MAX_DEPTH];
+    int depth = 0;
+
     cbuf_t buf;
-    if (g_buf_ptr) {
-        buf.ptr = g_buf_ptr;
-        buf.cap = g_buf_cap;
+    if (tl_buf_ptr) {
+        buf.ptr = tl_buf_ptr;
+        buf.cap = tl_buf_cap;
     } else {
         buf.ptr = (char *)malloc(131072);
         buf.cap = 131072;
     }
     buf.len = 0;
-    g_depth = 0;
 
     while (p < end) {
         uint8_t op = *p++;
         switch (op) {
         case 0x01: { /* OPEN */
-            if (g_depth > 0) flush_open_tag(&buf, &g_stack[g_depth-1]);
+            if (depth > 0) flush_open_tag(&buf, &stack[depth-1]);
             uint16_t tl = read_u16(&p);
-            if (g_depth >= MAX_DEPTH) rb_raise(rb_eRuntimeError, "opcode nesting too deep");
-            elem_state_t *e = &g_stack[g_depth++];
+            if (depth >= MAX_DEPTH) rb_raise(rb_eRuntimeError, "opcode nesting too deep");
+            elem_state_t *e = &stack[depth++];
             memset(e, 0, sizeof(*e));
             e->tag = (const char*)p; e->tag_len = tl;
             p += tl;
             break;
         }
         case 0x02: { /* CLOSE */
-            if (g_depth <= 0) rb_raise(rb_eRuntimeError, "opcode CLOSE without matching OPEN");
-            elem_state_t *e = &g_stack[--g_depth];
+            if (depth <= 0) rb_raise(rb_eRuntimeError, "opcode CLOSE without matching OPEN");
+            elem_state_t *e = &stack[--depth];
             flush_open_tag(&buf, e);
             CBUF_LIT(&buf, "</");
             cbuf_cat(&buf, e->tag, e->tag_len);
@@ -209,14 +210,14 @@ static VALUE native_render_opcodes(VALUE mod, VALUE opcodes_str) {
             break;
         }
         case 0x03: { /* TEXT */
-            if (g_depth > 0) flush_open_tag(&buf, &g_stack[g_depth-1]);
+            if (depth > 0) flush_open_tag(&buf, &stack[depth-1]);
             uint16_t len = read_u16(&p);
             cbuf_escaped(&buf, (const char*)p, len);
             p += len;
             break;
         }
         case 0x04: { /* RAW */
-            if (g_depth > 0) flush_open_tag(&buf, &g_stack[g_depth-1]);
+            if (depth > 0) flush_open_tag(&buf, &stack[depth-1]);
             uint16_t len = read_u16(&p);
             cbuf_cat(&buf, (const char*)p, len);
             p += len;
@@ -227,8 +228,8 @@ static VALUE native_render_opcodes(VALUE mod, VALUE opcodes_str) {
             const char *k = (const char*)p; p += kl;
             uint16_t vl = read_u16(&p);
             const char *v = (const char*)p; p += vl;
-            if (g_depth > 0) {
-                elem_state_t *e = &g_stack[g_depth-1];
+            if (depth > 0) {
+                elem_state_t *e = &stack[depth-1];
                 if (e->n_attr < MAX_ATTR) {
                     int i = e->n_attr++;
                     e->ak[i]=k; e->akl[i]=kl;
@@ -239,8 +240,8 @@ static VALUE native_render_opcodes(VALUE mod, VALUE opcodes_str) {
         }
         case 0x06: { /* CLASS */
             uint16_t len = read_u16(&p);
-            if (g_depth > 0) {
-                elem_state_t *e = &g_stack[g_depth-1];
+            if (depth > 0) {
+                elem_state_t *e = &stack[depth-1];
                 if (e->n_cls < MAX_CLS) {
                     int i = e->n_cls++;
                     e->cls[i]=(const char*)p; e->cls_len[i]=len;
@@ -251,8 +252,8 @@ static VALUE native_render_opcodes(VALUE mod, VALUE opcodes_str) {
         }
         case 0x07: { /* SETID */
             uint16_t len = read_u16(&p);
-            if (g_depth > 0) {
-                elem_state_t *e = &g_stack[g_depth-1];
+            if (depth > 0) {
+                elem_state_t *e = &stack[depth-1];
                 e->id = (const char*)p; e->id_len = len;
             }
             p += len;
@@ -263,8 +264,8 @@ static VALUE native_render_opcodes(VALUE mod, VALUE opcodes_str) {
             const char *k = (const char*)p; p += kl;
             uint16_t vl = read_u16(&p);
             const char *v = (const char*)p; p += vl;
-            if (g_depth > 0) {
-                elem_state_t *e = &g_stack[g_depth-1];
+            if (depth > 0) {
+                elem_state_t *e = &stack[depth-1];
                 if (e->n_sty < MAX_STY) {
                     int i = e->n_sty++;
                     e->sk[i]=k; e->skl[i]=kl;
@@ -274,13 +275,13 @@ static VALUE native_render_opcodes(VALUE mod, VALUE opcodes_str) {
             break;
         }
         case 0x09: { /* VCLOSE (void element) */
-            if (g_depth <= 0) rb_raise(rb_eRuntimeError, "opcode VCLOSE without matching OPEN");
-            elem_state_t *e = &g_stack[--g_depth];
+            if (depth <= 0) rb_raise(rb_eRuntimeError, "opcode VCLOSE without matching OPEN");
+            elem_state_t *e = &stack[--depth];
             flush_open_tag(&buf, e);
             break;
         }
         case 0x0A: { /* DOCTYPE */
-            if (g_depth > 0) flush_open_tag(&buf, &g_stack[g_depth-1]);
+            if (depth > 0) flush_open_tag(&buf, &stack[depth-1]);
             CBUF_LIT(&buf, "<!DOCTYPE html>\n");
             break;
         }
@@ -290,8 +291,8 @@ static VALUE native_render_opcodes(VALUE mod, VALUE opcodes_str) {
     }
 
     VALUE result = rb_enc_str_new(buf.ptr, (long)buf.len, enc_utf8);
-    g_buf_ptr = buf.ptr;
-    g_buf_cap = buf.cap;
+    tl_buf_ptr = buf.ptr;
+    tl_buf_cap = buf.cap;
     return result;
 }
 
@@ -522,10 +523,10 @@ static VALUE fwui_native_to_html(VALUE self) {
 
     cbuf_t buf;
 
-    /* Reuse buffer from previous call */
-    if (g_buf_ptr) {
-        buf.ptr = g_buf_ptr;
-        buf.cap = g_buf_cap;
+    /* Reuse per-thread buffer from previous call */
+    if (tl_buf_ptr) {
+        buf.ptr = tl_buf_ptr;
+        buf.cap = tl_buf_cap;
     } else {
         buf.ptr = (char *)malloc(131072);
         buf.cap = 131072;
@@ -537,43 +538,43 @@ static VALUE fwui_native_to_html(VALUE self) {
     /* render_node already cached the root for non-leaf nodes */
     cached = rb_ivar_get(self, id_html_cache);
     if (RB_TYPE_P(cached, T_STRING)) {
-        g_buf_ptr = buf.ptr;
-        g_buf_cap = buf.cap;
+        tl_buf_ptr = buf.ptr;
+        tl_buf_cap = buf.cap;
         return cached;
     }
 
     /* Fallback for raw/text root nodes (not cached by render_node) */
     VALUE result = rb_enc_str_new(buf.ptr, (long)buf.len, enc_utf8);
 
-    g_buf_ptr = buf.ptr;
-    g_buf_cap = buf.cap;
+    tl_buf_ptr = buf.ptr;
+    tl_buf_cap = buf.cap;
 
     rb_ivar_set(self, id_html_cache, result);
 
     return result;
 }
 
-/* ── Baked templates ───────────────────────────────────────────── */
-
-#define MAX_BAKED 64
-#define MAX_SLOTS 32
+/* ── Baked templates (dynamic array + mutex) ──────────────────── */
 
 typedef struct {
     VALUE name_sym;            /* Ruby symbol key */
-    char *chunks[MAX_SLOTS+1]; /* static HTML parts between slots */
-    size_t chunk_lens[MAX_SLOTS+1];
-    VALUE slot_syms[MAX_SLOTS]; /* Ruby symbols for hash lookup */
+    char  **chunks;            /* dynamic array [n_slots+1] */
+    size_t *chunk_lens;        /* dynamic array [n_slots+1] */
+    VALUE  *slot_syms;         /* dynamic array [n_slots] */
     int n_slots;
     int valid;
 } baked_t;
 
-static baked_t g_baked[MAX_BAKED];
+static pthread_mutex_t baked_mutex = PTHREAD_MUTEX_INITIALIZER;
+static baked_t *g_baked = NULL;
 static int g_baked_count = 0;
+static int g_baked_cap   = 0;
 
-/* GC mark all baked template Ruby values */
+/* GC mark all baked template Ruby values (GC runs single-threaded, no lock needed) */
 static void baked_mark(void *_unused) {
     (void)_unused;
-    for (int i = 0; i < g_baked_count; i++) {
+    int count = g_baked_count;
+    for (int i = 0; i < count; i++) {
         if (!g_baked[i].valid) continue;
         rb_gc_mark(g_baked[i].name_sym);
         for (int j = 0; j < g_baked[i].n_slots; j++)
@@ -590,35 +591,48 @@ static void baked_mark(void *_unused) {
 static VALUE native_register_baked(VALUE mod, VALUE name_sym,
                                    VALUE chunks_ary, VALUE slots_ary)
 {
-    if (g_baked_count >= MAX_BAKED)
-        rb_raise(rb_eRuntimeError, "Too many baked templates (max %d)", MAX_BAKED);
-
     int n_chunks = (int)RARRAY_LEN(chunks_ary);
     int n_slots  = (int)RARRAY_LEN(slots_ary);
 
     if (n_chunks != n_slots + 1)
         rb_raise(rb_eArgError, "chunks.length must equal slots.length + 1");
-    if (n_slots > MAX_SLOTS)
-        rb_raise(rb_eArgError, "Too many slots (max %d)", MAX_SLOTS);
+
+    pthread_mutex_lock(&baked_mutex);
 
     /* Check if template name already exists — overwrite */
     baked_t *tmpl = NULL;
     for (int i = 0; i < g_baked_count; i++) {
         if (g_baked[i].valid && g_baked[i].name_sym == name_sym) {
-            /* Free old chunks */
+            /* Free old dynamic arrays */
             for (int j = 0; j <= g_baked[i].n_slots; j++)
                 free(g_baked[i].chunks[j]);
+            free(g_baked[i].chunks);
+            free(g_baked[i].chunk_lens);
+            free(g_baked[i].slot_syms);
             tmpl = &g_baked[i];
             break;
         }
     }
     if (!tmpl) {
+        /* Grow array if needed */
+        if (g_baked_count >= g_baked_cap) {
+            int new_cap = g_baked_cap == 0 ? 32 : g_baked_cap * 2;
+            g_baked = (baked_t *)realloc(g_baked, (size_t)new_cap * sizeof(baked_t));
+            g_baked_cap = new_cap;
+        }
         tmpl = &g_baked[g_baked_count++];
     }
 
     tmpl->name_sym = name_sym;
     tmpl->n_slots = n_slots;
     tmpl->valid = 1;
+
+    /* Allocate dynamic arrays for chunks and slots */
+    tmpl->chunks     = (char **)malloc((size_t)(n_slots + 1) * sizeof(char *));
+    tmpl->chunk_lens = (size_t *)malloc((size_t)(n_slots + 1) * sizeof(size_t));
+    tmpl->slot_syms  = n_slots > 0
+        ? (VALUE *)malloc((size_t)n_slots * sizeof(VALUE))
+        : NULL;
 
     /* Copy static chunks into C-owned memory */
     for (int i = 0; i < n_chunks; i++) {
@@ -633,6 +647,7 @@ static VALUE native_register_baked(VALUE mod, VALUE name_sym,
     for (int i = 0; i < n_slots; i++)
         tmpl->slot_syms[i] = RARRAY_AREF(slots_ary, i);
 
+    pthread_mutex_unlock(&baked_mutex);
     return Qtrue;
 }
 
@@ -643,9 +658,10 @@ static VALUE native_register_baked(VALUE mod, VALUE name_sym,
  * HTML-escaped parameter values. No Ruby objects created except result.
  */
 static VALUE native_render_baked(VALUE mod, VALUE name_sym, VALUE params) {
-    /* Find template */
+    /* Find template (read-only after registration; atomic load for count) */
     baked_t *tmpl = NULL;
-    for (int i = 0; i < g_baked_count; i++) {
+    int count = __atomic_load_n(&g_baked_count, __ATOMIC_ACQUIRE);
+    for (int i = 0; i < count; i++) {
         if (g_baked[i].valid && g_baked[i].name_sym == name_sym) {
             tmpl = &g_baked[i];
             break;
@@ -655,9 +671,9 @@ static VALUE native_render_baked(VALUE mod, VALUE name_sym, VALUE params) {
         rb_raise(rb_eKeyError, "Baked template not found");
 
     cbuf_t buf;
-    if (g_buf_ptr) {
-        buf.ptr = g_buf_ptr;
-        buf.cap = g_buf_cap;
+    if (tl_buf_ptr) {
+        buf.ptr = tl_buf_ptr;
+        buf.cap = tl_buf_cap;
     } else {
         buf.ptr = (char *)malloc(131072);
         buf.cap = 131072;
@@ -682,8 +698,8 @@ static VALUE native_render_baked(VALUE mod, VALUE name_sym, VALUE params) {
     }
 
     VALUE result = rb_enc_str_new(buf.ptr, (long)buf.len, enc_utf8);
-    g_buf_ptr = buf.ptr;
-    g_buf_cap = buf.cap;
+    tl_buf_ptr = buf.ptr;
+    tl_buf_cap = buf.cap;
     return result;
 }
 

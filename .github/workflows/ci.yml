@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
     branches: [main]
 
@@ -44,8 +44,30 @@ jobs:
       - name: Run C++ tests
         run: ctest --test-dir build --output-on-failure -C Release
 
-  ruby-native:
+  ruby-pure:
     runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+
+      - name: Build gem
+        run: gem build fwui.gemspec
+
+      - name: Smoke test
+        run: ruby -e "require_relative 'ruby/lib/fwui'; puts FWUI.div([FWUI.h1('CI')]).to_html"
+
+  ruby-native:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: macos-latest
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -57,13 +79,19 @@ jobs:
       - name: Install rake-compiler
         run: gem install rake-compiler
 
+      - name: Cache vendored headers
+        uses: actions/cache@v4
+        with:
+          path: fwui-native/ext/fwui_native/vendor
+          key: vendor-headers-json3.11.3-inja3.4.0
+
       - name: Download vendored headers
         working-directory: fwui-native/ext/fwui_native
         run: |
           mkdir -p vendor/nlohmann
-          curl -sL -o vendor/nlohmann/json.hpp \
+          [ -f vendor/nlohmann/json.hpp ] || curl -sL -o vendor/nlohmann/json.hpp \
             https://github.com/nlohmann/json/releases/download/v3.11.3/json.hpp
-          curl -sL -o vendor/inja.hpp \
+          [ -f vendor/inja.hpp ] || curl -sL -o vendor/inja.hpp \
             https://raw.githubusercontent.com/pantor/inja/v3.4.0/single_include/inja/inja.hpp
 
       - name: Build C extension

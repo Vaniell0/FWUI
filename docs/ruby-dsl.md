@@ -1,6 +1,6 @@
 # Ruby DSL
 
-[[data/projects/FWUI/docs/index|← Главная]] · [[pipe-operator]] · [[components]]
+[← Главная](index.md) · [pipe-operator](pipe-operator.md) · [components](components.md)
 
 ## DSL Mixin
 

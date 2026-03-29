@@ -12,6 +12,9 @@ $CXXFLAGS << ' -O3 -std=c++17 -Wall -Wextra -Wno-unused-parameter'
 vendor_dir = File.join(__dir__, 'vendor')
 $INCFLAGS << " -I#{vendor_dir}"
 
+# pthread for thread-safe baked template registry
+have_library('pthread')
+
 # Build both .c and .cpp sources
 $srcs = Dir.glob(File.join(__dir__, '*.{c,cpp}'))
 

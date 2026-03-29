@@ -1,6 +1,6 @@
 # Компоненты и Registry
 
-[[data/projects/FWUI/docs/index|← Главная]] · [[ruby-dsl]] · [[pipe-operator]] · [[server]]
+[← Главная](index.md) · [ruby-dsl](ruby-dsl.md) · [pipe-operator](pipe-operator.md) · [server](server.md)
 
 ## Registry
 
@@ -120,4 +120,4 @@ load file                                    # перезагрузка файл
 Pages.const_get(mod_name).register(registry) # перерегистрация
 ```
 
-Подробнее: [[hot-reload]], [[server]]
+Подробнее: [hot-reload](hot-reload.md), [server](server.md)

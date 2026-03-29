@@ -1,6 +1,6 @@
 # Performance
 
-[[data/projects/FWUI/docs/index|← Главная]] · [[fwui-native]] · [[baked-templates]] · [[packed-builder]]
+[← Главная](index.md) · [fwui-native](fwui-native.md) · [baked-templates](baked-templates.md) · [packed-builder](packed-builder.md)
 
 ## Бенчмарк
 
