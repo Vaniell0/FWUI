@@ -20,18 +20,18 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-/* ── Cached IDs ─────────────────────────────────────────────────── */
+/* ── Cached IDs (shared with fwui_docx.cpp via extern) ─────────── */
 
-static ID id_tag, id_text, id_raw_html, id_attrs, id_styles;
-static ID id_classes, id_id, id_children;
-static ID id_html_cache;
+ID id_tag, id_text, id_raw_html, id_attrs, id_styles;
+ID id_classes, id_id, id_children;
+ID id_html_cache;
 
-static VALUE sym_text_node;
-static rb_encoding *enc_utf8;
+VALUE sym_text_node;
+rb_encoding *enc_utf8;
 
-/* ── Direct ivar access flag ────────────────────────────────────── */
+/* ── Direct ivar access flag (shared with fwui_docx.cpp) ─────── */
 
-static int direct_ok = 0;
+int direct_ok = 0;
 
 /* ── Reusable C buffer (per-thread for thread safety) ─────────── */
 
@@ -732,6 +732,10 @@ static void detect_ivar_layout(VALUE cNode) {
 
 extern void Init_fwui_inja(void);
 
+/* ── DOCX/ODT bindings (fwui_docx.cpp) ─────────────────────────── */
+
+extern void Init_fwui_docx(void);
+
 /* ── Init ───────────────────────────────────────────────────────── */
 
 void Init_fwui_native(void) {
@@ -776,4 +780,7 @@ void Init_fwui_native(void) {
 
     /* Initialize Inja template bindings */
     Init_fwui_inja();
+
+    /* Initialize DOCX/ODT export bindings */
+    Init_fwui_docx();
 }
