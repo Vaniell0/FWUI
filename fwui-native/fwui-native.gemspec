@@ -2,11 +2,11 @@
 
 Gem::Specification.new do |s|
   s.name        = 'fwui-native'
-  s.version     = '1.1.0'
-  s.summary     = 'Native C extension for FWUI HTML rendering'
+  s.version     = '1.2.0'
+  s.summary     = 'Native C extension for FWUI rendering and document export'
   s.description = 'C extension for FWUI: direct ivar access (ROBJECT_IVPTR), ' \
-                  'render caching, baked templates, and Inja template engine. ' \
-                  '~3x cold render, instant cached, 250x+ with registry cache.'
+                  'render caching, baked templates, Inja template engine, ' \
+                  'and DOCX/ODT export (zero dependencies, pure C++17).'
 
   s.authors  = ['Vaniello']
   s.email    = ['ripaivan11@gmail.com']

@@ -100,4 +100,6 @@ jobs:
 
       - name: Run tests
         working-directory: fwui-native
-        run: ruby test/test_native.rb
+        run: |
+          ruby test/test_native.rb
+          ruby test/test_docx.rb

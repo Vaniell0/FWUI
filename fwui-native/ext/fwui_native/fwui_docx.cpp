@@ -500,9 +500,7 @@ static bool is_skip_tag(const std::string &tag) {
     return skips.count(tag) > 0;
 }
 
-/* ══════════════════════════════════════════════════════════════════
- *  DOCX Renderer
- * ══════════════════════════════════════════════════════════════════ */
+/* ── Shared structs (used by both DOCX and ODT renderers) ──────── */
 
 /* Run properties collected from inline ancestors */
 struct RunProps {
@@ -529,6 +527,50 @@ struct ParaProps {
     int heading_level = 0;       /* 1-6 or 0 */
     BorderInfo border;           /* uniform border from CSS `border` */
 };
+
+/* ── Shared: merge run props from tag + styles ─────────────────── */
+
+static RunProps compute_run_props(const RunProps &parent, VALUE styles, const std::string &tag) {
+    RunProps rp = parent;
+    if (tag == "strong" || tag == "b") rp.bold = true;
+    if (tag == "em" || tag == "i")     rp.italic = true;
+    if (tag == "u")                    rp.underline = true;
+    if (tag == "s" || tag == "del" || tag == "strike") rp.strike = true;
+    if (tag == "code" || tag == "pre" || tag == "kbd" || tag == "samp") rp.monospace = true;
+
+    std::string fw = get_style(styles, "font-weight");
+    if (fw == "bold" || fw == "700" || fw == "800" || fw == "900") rp.bold = true;
+    std::string fs = get_style(styles, "font-style");
+    if (fs == "italic" || fs == "oblique") rp.italic = true;
+    std::string td = get_style(styles, "text-decoration");
+    if (td.find("underline") != std::string::npos) rp.underline = true;
+    if (td.find("line-through") != std::string::npos) rp.strike = true;
+
+    std::string color = get_style(styles, "color");
+    std::string hex = parse_color_to_hex6(color);
+    if (!hex.empty()) rp.color = hex;
+    std::string bg = get_style(styles, "background-color");
+    hex = parse_color_to_hex6(bg);
+    if (!hex.empty()) rp.bg_color = hex;
+
+    std::string fsize = get_style(styles, "font-size");
+    if (!fsize.empty()) {
+        int hp = css_to_half_pt(fsize);
+        if (hp > 0) rp.font_size = std::to_string(hp);
+    }
+    std::string ff = get_style(styles, "font-family");
+    if (!ff.empty()) rp.font_family = ff;
+    std::string ls = get_style(styles, "letter-spacing");
+    if (!ls.empty()) {
+        int tw = css_to_twips(ls);
+        if (tw != 0) rp.letter_spacing = std::to_string(tw);
+    }
+    return rp;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+ *  DOCX Renderer
+ * ══════════════════════════════════════════════════════════════════ */
 
 class DocxRenderer {
     XmlWriter body_;
@@ -801,7 +843,7 @@ private:
         body_.close("w:tcPr");
 
         /* Cell content — must contain at least one paragraph */
-        RunProps cell_rp = merge_run_props(rp, cell_d.styles, is_header ? "th" : "td");
+        RunProps cell_rp = compute_run_props(rp, cell_d.styles, is_header ? "th" : "td");
         if (is_header) cell_rp.bold = true;
 
         ParaProps cell_pp = make_para_props(cell_d.styles, is_header ? "th" : "td");
@@ -922,55 +964,6 @@ private:
         body_.close("w:r");
     }
 
-    /* ── Collect run props from styles ─────────────────────────── */
-
-    RunProps merge_run_props(const RunProps &parent, VALUE styles, const std::string &tag) {
-        RunProps rp = parent;
-
-        /* Tag-based formatting */
-        if (tag == "strong" || tag == "b") rp.bold = true;
-        if (tag == "em" || tag == "i")     rp.italic = true;
-        if (tag == "u")                    rp.underline = true;
-        if (tag == "s" || tag == "del" || tag == "strike") rp.strike = true;
-        if (tag == "code" || tag == "pre" || tag == "kbd" || tag == "samp") rp.monospace = true;
-
-        /* Style-based formatting */
-        std::string fw = get_style(styles, "font-weight");
-        if (fw == "bold" || fw == "700" || fw == "800" || fw == "900") rp.bold = true;
-
-        std::string fs = get_style(styles, "font-style");
-        if (fs == "italic" || fs == "oblique") rp.italic = true;
-
-        std::string td = get_style(styles, "text-decoration");
-        if (td.find("underline") != std::string::npos) rp.underline = true;
-        if (td.find("line-through") != std::string::npos) rp.strike = true;
-
-        std::string color = get_style(styles, "color");
-        std::string hex = parse_color_to_hex6(color);
-        if (!hex.empty()) rp.color = hex;
-
-        std::string bg = get_style(styles, "background-color");
-        hex = parse_color_to_hex6(bg);
-        if (!hex.empty()) rp.bg_color = hex;
-
-        std::string fsize = get_style(styles, "font-size");
-        if (!fsize.empty()) {
-            int hp = css_to_half_pt(fsize);
-            if (hp > 0) rp.font_size = std::to_string(hp);
-        }
-
-        std::string ff = get_style(styles, "font-family");
-        if (!ff.empty()) rp.font_family = ff;
-
-        std::string ls = get_style(styles, "letter-spacing");
-        if (!ls.empty()) {
-            int tw = css_to_twips(ls);
-            if (tw != 0) rp.letter_spacing = std::to_string(tw);
-        }
-
-        return rp;
-    }
-
     /* ── Collect paragraph props from styles ───────────────────── */
 
     ParaProps make_para_props(VALUE styles, const std::string &tag) {
@@ -1042,7 +1035,7 @@ private:
         if (is_skip_tag(tag)) return;
 
         /* Merge run props from this element */
-        RunProps child_rp = merge_run_props(rp, d.styles, tag);
+        RunProps child_rp = compute_run_props(rp, d.styles, tag);
 
         /* ── br ────────────────────────────────────────────────── */
         if (tag == "br") {
@@ -1675,7 +1668,7 @@ private:
 
         if (is_skip_tag(tag)) return;
 
-        RunProps child_rp = merge_run_props(rp, d.styles, tag);
+        RunProps child_rp = compute_run_props(rp, d.styles, tag);
 
         /* ── br ───────────────────────────────────────────────── */
         if (tag == "br") {
@@ -1915,7 +1908,7 @@ private:
         }
         body_.end_open();
 
-        RunProps cell_rp = merge_run_props(rp, cell_d.styles, is_header ? "th" : "td");
+        RunProps cell_rp = compute_run_props(rp, cell_d.styles, is_header ? "th" : "td");
         if (is_header) cell_rp.bold = true;
 
         bool saved = in_paragraph_;
@@ -2000,44 +1993,7 @@ private:
         body_.close("draw:frame");
     }
 
-    /* Reuse from DocxRenderer — same logic */
-    RunProps merge_run_props(const RunProps &parent, VALUE styles, const std::string &tag) {
-        RunProps rp = parent;
-        if (tag == "strong" || tag == "b") rp.bold = true;
-        if (tag == "em" || tag == "i")     rp.italic = true;
-        if (tag == "u")                    rp.underline = true;
-        if (tag == "s" || tag == "del" || tag == "strike") rp.strike = true;
-        if (tag == "code" || tag == "pre" || tag == "kbd" || tag == "samp") rp.monospace = true;
-
-        std::string fw = get_style(styles, "font-weight");
-        if (fw == "bold" || fw == "700" || fw == "800" || fw == "900") rp.bold = true;
-        std::string fs = get_style(styles, "font-style");
-        if (fs == "italic" || fs == "oblique") rp.italic = true;
-        std::string td = get_style(styles, "text-decoration");
-        if (td.find("underline") != std::string::npos) rp.underline = true;
-        if (td.find("line-through") != std::string::npos) rp.strike = true;
-
-        std::string color = get_style(styles, "color");
-        std::string hex = parse_color_to_hex6(color);
-        if (!hex.empty()) rp.color = hex;
-        std::string bg = get_style(styles, "background-color");
-        hex = parse_color_to_hex6(bg);
-        if (!hex.empty()) rp.bg_color = hex;
-
-        std::string fsize = get_style(styles, "font-size");
-        if (!fsize.empty()) {
-            int hp = css_to_half_pt(fsize);
-            if (hp > 0) rp.font_size = std::to_string(hp);
-        }
-        std::string ff = get_style(styles, "font-family");
-        if (!ff.empty()) rp.font_family = ff;
-        std::string ls = get_style(styles, "letter-spacing");
-        if (!ls.empty()) {
-            int tw = css_to_twips(ls);
-            if (tw != 0) rp.letter_spacing = std::to_string(tw);
-        }
-        return rp;
-    }
+    /* compute_run_props is a shared free function (see above) */
 
     /* ── ODF boilerplate ──────────────────────────────────────── */
 

@@ -33,4 +33,4 @@ ruby/lib/fwui/native/*/
 !README.md
 !LICENSE
 
-!.github/.capi-stash.patch
+!.github/
